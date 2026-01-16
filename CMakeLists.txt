@@ -14,6 +14,8 @@ find_package(Dtk6Widget REQUIRED)
 
 add_executable(solitario
     src/main.cpp
+    src/Carta.h
+    src/Monton.h
     src/MainWindow.h src/MainWindow.cpp
 )
 
