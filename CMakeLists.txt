@@ -16,6 +16,7 @@ add_executable(solitario
     src/main.cpp
     src/Carta.h
     src/Monton.h
+    src/JuegoKlondike.h src/JuegoKlondike.cpp
     src/MainWindow.h src/MainWindow.cpp
 )
 
