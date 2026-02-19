@@ -1,12 +1,19 @@
 #include "TableroWidget.h"
 #include <QPainter>
 #include <QPainterPath>
+#include <QMouseEvent>
 #include <QResizeEvent>
 #include <QFont>
 #include <QFontInfo>
 #include <QLinearGradient>
 
 void TableroWidget::IniciarJuego() {
+    dragging = false;
+    dragCartas.clear();
+    dragCol = -1;
+    dragIdx = -1;
+    dropColResaltado = -1;
+
     klondike.Iniciar();
     update();
 }
@@ -25,6 +32,29 @@ int TableroWidget::EspaciadoX() const {
 
 int TableroWidget::EspaciadoY() const {
     return AltoCarta() / 4;
+}
+
+QRect TableroWidget::ColumnaRect(int col) const {
+    int w = AnchoCarta();
+    int sx = EspaciadoX(), sy = EspaciadoY();
+    int topY = sy;
+    int colY = topY + AltoCarta() + sy * 2;
+    int x = sx + col * (w + sx);
+    return QRect(x, colY, w, height() - colY);
+}
+
+int TableroWidget::ColumnaObjetivo(int mx, int my) const {
+    int w = AnchoCarta(), h = AltoCarta();
+    int sx = EspaciadoX(), sy = EspaciadoY();
+    int topY = sy;
+    int colY = topY + h + sy * 2;
+
+    for (int i = 0; i < 7; i++) {
+        int x = sx + i * (w + sx);
+        QRect zone(x - sx/2, colY - sy, w + sx, height() - colY + sy);
+        if (zone.contains(mx, my)) return i;
+    }
+    return -1;
 }
 
 TableroWidget::TableroWidget(QWidget *parent) : QWidget(parent) {
@@ -256,10 +286,27 @@ void TableroWidget::DibujarStockCount(QPainter &p, int count, int x, int y, int 
     p.drawText(badge, Qt::AlignCenter, QString::number(count));
 }
 
+void TableroWidget::DibujarDropTarget(QPainter &p, int col) {
+    if (col < 0) return;
+    int w = AnchoCarta();
+    QRect zone = ColumnaRect(col);
+    int x = zone.x();
+    int y = zone.y();
+    int h = zone.height();
+    QColor cBase = dropValido ? QColor(255, 255, 100) : QColor(255, 80, 80);
+    QColor fill = dropValido ? QColor(255, 255, 100, 30) : QColor(255, 80, 80, 25);
+
+    p.setPen(QPen(cBase, 2, Qt::DashLine));
+    p.setBrush(fill);
+    p.drawRoundedRect(QRect(x, y, w, h), 6, 6);
+}
+
 void TableroWidget::DibujarKlondike(QPainter &p) {
     int w = AnchoCarta(), h = AltoCarta();
     int sx = EspaciadoX(), sy = EspaciadoY();
     int topY = sy;
+
+    if (dragging) DibujarDropTarget(p, dropColResaltado);
 
     for (int i = 0; i < 4; i++) {
         int x = width() - (4 - i) * (w + sx) + sx;
@@ -300,10 +347,170 @@ void TableroWidget::DibujarKlondike(QPainter &p) {
         for (int j = 0; j < klondike.Columnas()[i].Tamanio(); j++) {
             const Carta &c = klondike.Columnas()[i].cartas[j];
             int cy = colY + j * sy;
+            if (dragging && i == dragCol && j >= dragIdx) continue;
             if (c.bocaArriba) DibujarCarta(p, c, x, cy, w, h);
             else DibujarCartaBocaAbajo(p, x, cy, w, h);
         }
     }
+
+    if (dragging) {
+        for (int i = 0; i < dragCartas.size(); i++) {
+            int px = dragMouseActual.x() - w/2;
+            int py = dragMouseActual.y() + i * EspaciadoY();
+            DibujarCarta(p, dragCartas[i], px, py, w, h);
+        }
+    }
+}
+
+int TableroWidget::HitTest(int mx, int my, int &col, int &idx) {
+    int w = AnchoCarta(), h = AltoCarta();
+    int sx = EspaciadoX(), sy = EspaciadoY();
+    int topY = sy;
+    int colY = topY + h + sy * 2;
+
+    for (int i = 0; i < 4; i++) {
+        int fx = width() - (4 - i) * (w + sx) + sx;
+        if (QRect(fx, topY, w, h).contains(mx, my)) {
+            col = -2 - i;
+            idx = -1;
+            return 0;
+        }
+    }
+
+    if (QRect(sx, topY, w, h).contains(mx, my)) {
+        col = -1; idx = -1; return 1;
+    }
+    int wasteX = sx + w + sx;
+    if (!klondike.Waste().isEmpty() && QRect(wasteX, topY, w, h).contains(mx, my)) {
+        col = -1;
+        idx = klondike.WasteMonton().Tamanio() - 1;
+        return 2;
+    }
+
+    for (int i = 6; i >= 0; i--) {
+        int x = sx + i * (w + sx);
+        Monton &m = klondike.Columnas()[i];
+        int numCartas = m.Tamanio();
+
+        for (int j = numCartas - 1; j >= 0; j--) {
+            int cy = colY + j * sy;
+            int ch = (j == numCartas - 1) ? h : sy;
+            if (QRect(x, cy, w, ch).contains(mx, my) ||
+                (j == numCartas - 1 && QRect(x, cy, w, h).contains(mx, my))) {
+                col = i; idx = j; return 5 + i;
+            }
+        }
+        if (numCartas == 0 && QRect(x, colY, w, h).contains(mx, my)) {
+            col = i; idx = 0; return 5 + i;
+        }
+    }
+
+    col = -1; idx = -1; return -1;
+}
+
+void TableroWidget::mousePressEvent(QMouseEvent *event) {
+    if (event->button() != Qt::LeftButton) return;
+
+    int col, idx;
+    int hit = HitTest(event->pos().x(), event->pos().y(), col, idx);
+
+    if (hit == 1) {
+        klondike.sacarDeStock();
+        update();
+        return;
+    }
+
+    if (hit >= 5) {
+        IniciarDrag(event->pos().x(), event->pos().y());
+    } else if (hit == 2) {
+        dragCol = -1;
+        dragIdx = 0;
+        dragCartas.clear();
+        dragCartas.append(klondike.WasteMonton().Top());
+        dragging = true;
+        dragMouseActual = event->pos();
+    }
+    update();
+}
+
+void TableroWidget::IniciarDrag(int mx, int my) {
+    int col, idx;
+    HitTest(mx, my, col, idx);
+
+    if (col < 0) return;
+
+    QVector<Carta> &cartas = klondike.Columnas()[col].cartas;
+
+    if (idx >= cartas.size()) return;
+    if (!cartas[idx].bocaArriba) {
+        if (idx == cartas.size() - 1) {
+            cartas[idx].bocaArriba = true;
+            update();
+        }
+        return;
+    }
+
+    dragCol = col;
+    dragIdx = idx;
+    dragCartas.clear();
+    for (int i = idx; i < cartas.size(); i++) {
+        dragCartas.append(cartas[i]);
+    }
+    dragging = true;
+    dragMouseActual = QPoint(mx, my);
+}
+
+void TableroWidget::mouseMoveEvent(QMouseEvent *event) {
+    if (!dragging) return;
+    dragMouseActual = event->pos();
+
+    int col, idx;
+    HitTest(event->pos().x(), event->pos().y(), col, idx);
+    int tgt = ColumnaObjetivo(event->pos().x(), event->pos().y());
+    if (tgt >= 0 && tgt != dragCol) {
+        dropColResaltado = tgt;
+        dropValido = ValidarDropEnColumna(tgt);
+    } else {
+        dropColResaltado = -1;
+    }
+}
+
+void TableroWidget::mouseReleaseEvent(QMouseEvent *event) {
+    if (!dragging) return;
+    dragging = false;
+
+    int col, idx;
+    HitTest(event->pos().x(), event->pos().y(), col, idx);
+    bool moved = false;
+
+    if (dragCol == -1) {
+        if (col >= 0) moved = klondike.MoverAColumna(-1, 0, col);
+        if (!moved) moved = klondike.MoverAFoundation(-1, 0);
+    } else if (col >= 0) {
+        moved = klondike.MoverAColumna(dragCol, dragIdx, col);
+    } else if (col <= -2 && col >= -5) {
+        if (dragCol == -1) moved = klondike.MoverAFoundation(-1, 0);
+        else moved = klondike.MoverAFoundation(dragCol, dragIdx);
+    }
+
+    if (moved) {
+        dragCartas.clear();
+        dropColResaltado = -1;
+        klondike.autoFoundation();
+        update();
+    } else {
+        update();
+    }
+}
+
+bool TableroWidget::ValidarDropEnColumna(int tgtCol) {
+    if (tgtCol < 0 || dragCartas.isEmpty()) return false;
+
+    const Carta &first = dragCartas.first();
+    const Monton &dest = klondike.Columnas()[tgtCol];
+    if (dest.Vacia()) return first.valor == 13;
+    const Carta &top = dest.Top();
+    return top.EsRojo() != first.EsRojo() && top.valor == first.valor + 1;
 }
 
 void TableroWidget::resizeEvent(QResizeEvent *) {
