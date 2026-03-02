@@ -13,9 +13,32 @@ void TableroWidget::IniciarJuego() {
     dragCol = -1;
     dragIdx = -1;
     dropColResaltado = -1;
+    movimientos = 0;
+    tiempoSegundos = 0;
+    puntuacion = 0;
+    timerReloj.stop();
 
     klondike.Iniciar();
+    timerReloj.start();
+
+    emit MovimientosChanged(0);
+    emit TiempoChanged(0);
+    emit PuntuacionChanged(0);
     update();
+}
+
+void TableroWidget::TickTemporizador() {
+    tiempoSegundos++;
+    emit TiempoChanged(tiempoSegundos);
+}
+
+void TableroWidget::CalcularPuntuacion() {
+    int base = 0;
+    for (int i = 0; i < 4; i++) base += klondike.Foundations()[i].Tamanio() * 10;
+    base -= movimientos;
+    int bonus = qMax(0, 600 - tiempoSegundos);
+    puntuacion = qMax(0, base + bonus);
+    emit PuntuacionChanged(puntuacion);
 }
 
 int TableroWidget::AnchoCarta() const {
@@ -61,6 +84,10 @@ TableroWidget::TableroWidget(QWidget *parent) : QWidget(parent) {
     setMinimumSize(800, 600);
     setMouseTracking(true);
     setAutoFillBackground(false);
+
+    timerReloj.setTimerType(Qt::CoarseTimer);
+    timerReloj.setInterval(1000);
+    connect(&timerReloj, &QTimer::timeout, this, &TableroWidget::TickTemporizador);
 }
 
 void TableroWidget::paintEvent(QPaintEvent *) {
@@ -497,6 +524,9 @@ void TableroWidget::mouseReleaseEvent(QMouseEvent *event) {
         dragCartas.clear();
         dropColResaltado = -1;
         klondike.autoFoundation();
+        movimientos++;
+        emit MovimientosChanged(movimientos);
+        CalcularPuntuacion();
         update();
     } else {
         update();

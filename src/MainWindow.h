@@ -14,6 +14,8 @@ public:
     explicit MainWindow(QWidget *parent = nullptr);
 
 private:
+    void ActualizarTitulo();
+
     TableroWidget *tablero;
     DMenu *menuJuego;
 };
