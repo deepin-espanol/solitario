@@ -6,6 +6,52 @@
 #include <QFont>
 #include <QFontInfo>
 #include <QLinearGradient>
+#include <QSoundEffect>
+#include <QUrl>
+#include <QDir>
+#include <QStandardPaths>
+#include <cmath>
+
+static QByteArray GenerarTono(int freq, int durationMs, int sampleRate = 44100) {
+    int numSamples = sampleRate * durationMs / 1000;
+    int dataSize = numSamples * 2;
+    int fileSize = 44 + dataSize;
+
+    QByteArray buf(fileSize, 0);
+    auto put32 = [&](int off, int v) { buf[off]=v; buf[off+1]=v>>8; buf[off+2]=v>>16; buf[off+3]=v>>24; };
+    auto put16 = [&](int off, int v) { buf[off]=v; buf[off+1]=v>>8; };
+
+    buf.replace(0, 4, "RIFF");
+    put32(4, fileSize - 8);
+    buf.replace(8, 4, "WAVE");
+    buf.replace(12, 4, "fmt ");
+    put32(16, 16);
+    put16(20, 1);
+    put16(22, 1);
+    put32(24, sampleRate);
+    put32(28, sampleRate * 2);
+    put16(32, 2);
+    put16(34, 16);
+    buf.replace(36, 4, "data");
+    put32(40, dataSize);
+
+    qint16 *samples = reinterpret_cast<qint16*>(buf.data() + 44);
+    for (int i = 0; i < numSamples; i++) {
+        double t = (double)i / sampleRate;
+        double env = 1.0 - (double)i / numSamples;
+        samples[i] = (qint16)(16000.0 * env * sin(2.0 * M_PI * freq * t));
+    }
+    return buf;
+}
+
+static QString SonidosPath() {
+    static QString path;
+    if (path.isEmpty()) {
+        path = QStandardPaths::writableLocation(QStandardPaths::CacheLocation);
+        QDir().mkpath(path);
+    }
+    return path;
+}
 
 void TableroWidget::IniciarJuego() {
     dragging = false;
@@ -16,10 +62,46 @@ void TableroWidget::IniciarJuego() {
     movimientos = 0;
     tiempoSegundos = 0;
     puntuacion = 0;
+    animTimer.stop();
     timerReloj.stop();
 
     klondike.Iniciar();
-    timerReloj.start();
+
+    // Shuffle animation
+    shuffleCards.clear();
+    barajando = true;
+    int w = AnchoCarta(), h = AltoCarta();
+    int sx = EspaciadoX(), sy = EspaciadoY();
+    int centerX = width() / 2 - w / 2;
+    int centerY = height() / 2 - h / 2;
+
+    for (int i = 0; i < 7; i++) {
+        for (int j = 0; j < klondike.Columnas()[i].Tamanio(); j++) {
+            int toX = sx + i * (w + sx);
+            int toY = sy + h + sy * 2 + j * sy;
+            ShuffleCard sc;
+            sc.fromX = centerX + (rand() % 40 - 20);
+            sc.fromY = centerY + (rand() % 40 - 20);
+            sc.toX = toX;
+            sc.toY = toY;
+            sc.progress = 0.0f;
+            sc.carta = klondike.Columnas()[i].cartas[j];
+            sc.col = i;
+            sc.idx = j;
+            shuffleCards.append(sc);
+        }
+    }
+
+    if (!shuffleCards.isEmpty()) {
+        float step = 0.04f;
+        for (int i = 0; i < shuffleCards.size(); i++) {
+            shuffleCards[i].progress = qMin(1.0f, step * i);
+        }
+        shuffleTimer.start();
+    } else {
+        barajando = false;
+        timerReloj.start();
+    }
 
     emit MovimientosChanged(0);
     emit TiempoChanged(0);
@@ -27,7 +109,25 @@ void TableroWidget::IniciarJuego() {
     update();
 }
 
+void TableroWidget::AnimarBarajado() {
+    bool allDone = true;
+    for (auto &sc : shuffleCards) {
+        if (sc.progress < 1.0f) {
+            sc.progress = qMin(1.0f, sc.progress + 0.06f);
+            allDone = false;
+        }
+    }
+    update();
+    if (allDone) {
+        shuffleTimer.stop();
+        barajando = false;
+        shuffleCards.clear();
+        timerReloj.start();
+    }
+}
+
 void TableroWidget::TickTemporizador() {
+    if (barajando) return;
     tiempoSegundos++;
     emit TiempoChanged(tiempoSegundos);
 }
@@ -85,9 +185,54 @@ TableroWidget::TableroWidget(QWidget *parent) : QWidget(parent) {
     setMouseTracking(true);
     setAutoFillBackground(false);
 
+    animTimer.setTimerType(Qt::PreciseTimer);
+    animTimer.setInterval(16);
+    connect(&animTimer, &QTimer::timeout, this, &TableroWidget::AnimarDrag);
+
     timerReloj.setTimerType(Qt::CoarseTimer);
     timerReloj.setInterval(1000);
     connect(&timerReloj, &QTimer::timeout, this, &TableroWidget::TickTemporizador);
+
+    shuffleTimer.setTimerType(Qt::PreciseTimer);
+    shuffleTimer.setInterval(16);
+    connect(&shuffleTimer, &QTimer::timeout, this, &TableroWidget::AnimarBarajado);
+
+    QString sPath = SonidosPath();
+    QByteArray flipData = GenerarTono(1200, 60);
+    QByteArray moveData = GenerarTono(600, 100);
+    QByteArray winData  = GenerarTono(800, 300);
+
+    QString flipFile = sPath + "/flip.wav";
+    QString moveFile = sPath + "/move.wav";
+    QString winFile  = sPath + "/win.wav";
+    QFile(flipFile).remove();
+    QFile(moveFile).remove();
+    QFile(winFile).remove();
+
+    QFile f1(flipFile); f1.open(QIODevice::WriteOnly); f1.write(flipData); f1.close();
+    QFile f2(moveFile); f2.open(QIODevice::WriteOnly); f2.write(moveData); f2.close();
+    QFile f3(winFile);  f3.open(QIODevice::WriteOnly); f3.write(winData);  f3.close();
+
+    sndFlip = new QSoundEffect(this);
+    sndFlip->setSource(QUrl::fromLocalFile(flipFile));
+    sndFlip->setVolume(0.5f);
+
+    sndMove = new QSoundEffect(this);
+    sndMove->setSource(QUrl::fromLocalFile(moveFile));
+    sndMove->setVolume(0.4f);
+
+    sndWin = new QSoundEffect(this);
+    sndWin->setSource(QUrl::fromLocalFile(winFile));
+    sndWin->setVolume(0.6f);
+}
+
+void TableroWidget::ReproducirSonido(const QString &tipo) {
+    QSoundEffect *s = nullptr;
+    if (tipo == "flip") s = sndFlip;
+    else if (tipo == "move") s = sndMove;
+    else if (tipo == "win") s = sndWin;
+    if (s && !s->isLoaded()) return;
+    if (s) s->play();
 }
 
 void TableroWidget::paintEvent(QPaintEvent *) {
@@ -95,6 +240,18 @@ void TableroWidget::paintEvent(QPaintEvent *) {
     p.setRenderHint(QPainter::Antialiasing);
 
     DibujarFondo(p);
+
+    if (barajando) {
+        int w = AnchoCarta(), h = AltoCarta();
+        for (auto &sc : shuffleCards) {
+            float t = 1.0f - std::pow(1.0f - sc.progress, 3);
+            int x = sc.fromX + (int)((sc.toX - sc.fromX) * t);
+            int y = sc.fromY + (int)((sc.toY - sc.fromY) * t);
+            DibujarCartaBocaAbajo(p, x, y, w, h, (1.0f - t) * 0.3f);
+        }
+        return;
+    }
+
     DibujarKlondike(p);
 }
 
@@ -140,8 +297,11 @@ void TableroWidget::DibujarFondo(QPainter &p) {
     }
 }
 
-void TableroWidget::DibujarCarta(QPainter &p, const Carta &c, int x, int y, int w, int h) {
+void TableroWidget::DibujarCarta(QPainter &p, const Carta &c, int x, int y, int w, int h, float lift) {
     QRect r(x, y, w, h);
+
+    int blur = int(lift * 14);
+    if (blur > 0) DibujarSombra(p, x, y, w, h, blur, QColor(0, 0, 0, int(120 * lift)));
 
     p.setPen(QPen(QColor(150, 150, 150), 1));
     p.setBrush(QColor(248, 248, 240));
@@ -184,14 +344,14 @@ void TableroWidget::DibujarCarta(QPainter &p, const Carta &c, int x, int y, int 
     p.setPen(color);
 
     int tx = x + pad;
-    int ty = y + pad;
+    int ty = y + pad - int(lift * 4);
     p.setFont(fv);
     p.drawText(tx, ty + mfv.ascent(), valor);
     p.setFont(fs);
     p.drawText(tx, ty + mfv.height() + mfs.ascent() + 1, palo);
 
     p.save();
-    p.translate(x + w - pad, y + h - pad);
+    p.translate(x + w - pad, y + h - pad + int(lift * 4));
     p.rotate(180);
     p.setFont(fv);
     p.drawText(0, mfv.ascent(), valor);
@@ -228,8 +388,11 @@ void TableroWidget::DibujarSombra(QPainter &p, int x, int y, int w, int h, int b
     p.restore();
 }
 
-void TableroWidget::DibujarCartaBocaAbajo(QPainter &p, int x, int y, int w, int h) {
+void TableroWidget::DibujarCartaBocaAbajo(QPainter &p, int x, int y, int w, int h, float lift) {
     QRect r(x, y, w, h);
+
+    int blur = int(lift * 14);
+    if (blur > 0) DibujarSombra(p, x, y, w, h, blur, QColor(0, 0, 0, int(120 * lift)));
 
     QColor rojoBase(213, 51, 51);
     QColor dorado(218, 165, 32);
@@ -382,9 +545,9 @@ void TableroWidget::DibujarKlondike(QPainter &p) {
 
     if (dragging) {
         for (int i = 0; i < dragCartas.size(); i++) {
-            int px = dragMouseActual.x() - w/2;
-            int py = dragMouseActual.y() + i * EspaciadoY();
-            DibujarCarta(p, dragCartas[i], px, py, w, h);
+            int px = dragMouseFinal.x() - w/2;
+            int py = dragMouseFinal.y() + i * EspaciadoY();
+            DibujarCarta(p, dragCartas[i], px, py, w, h, dragLift);
         }
     }
 }
@@ -443,6 +606,8 @@ void TableroWidget::mousePressEvent(QMouseEvent *event) {
 
     if (hit == 1) {
         klondike.sacarDeStock();
+        ReproducirSonido("flip");
+        CalcularPuntuacion();
         update();
         return;
     }
@@ -455,7 +620,13 @@ void TableroWidget::mousePressEvent(QMouseEvent *event) {
         dragCartas.clear();
         dragCartas.append(klondike.WasteMonton().Top());
         dragging = true;
+        dragLift = 0.0f;
+        int w = AnchoCarta(), sx = EspaciadoX();
+        int wasteX = sx + w + sx;
+        dragOrigen = QPoint(wasteX + w/2, EspaciadoY());
         dragMouseActual = event->pos();
+        dragMouseFinal = event->pos();
+        animTimer.start();
     }
     update();
 }
@@ -484,7 +655,45 @@ void TableroWidget::IniciarDrag(int mx, int my) {
         dragCartas.append(cartas[i]);
     }
     dragging = true;
+    dragLift = 0.0f;
+
+    int w = AnchoCarta();
+    int sx = EspaciadoX(), sy = EspaciadoY();
+    int topY = sy;
+    int colY = topY + AltoCarta() + sy * 2;
+    int x = sx + col * (w + sx);
+    int y = colY + idx * EspaciadoY();
+    dragOrigen = QPoint(x + w/2, y);
     dragMouseActual = QPoint(mx, my);
+    dragMouseFinal = dragOrigen;
+    animTimer.start();
+}
+
+void TableroWidget::AnimarDrag() {
+    bool needsUpdate = false;
+
+    if (dragging && dragLift < 1.0f) {
+        dragLift = qMin(1.0f, dragLift + 0.18f);
+        needsUpdate = true;
+    }
+
+    if (dragging) {
+        QPointF diff = dragMouseActual - dragMouseFinal;
+        float k = 0.45f;
+        QPoint delta(int(diff.x() * k), int(diff.y() * k));
+        if (delta.manhattanLength() > 0) {
+            dragMouseFinal += delta;
+            needsUpdate = true;
+        }
+        if ((dragMouseActual - dragMouseFinal).manhattanLength() < 2) {
+            dragMouseFinal = dragMouseActual;
+        }
+    }
+
+    if (needsUpdate) update();
+    else if (dragging && (dragMouseActual - dragMouseFinal).manhattanLength() == 0 && dragLift >= 1.0f) {
+        animTimer.stop();
+    }
 }
 
 void TableroWidget::mouseMoveEvent(QMouseEvent *event) {
@@ -521,14 +730,25 @@ void TableroWidget::mouseReleaseEvent(QMouseEvent *event) {
     }
 
     if (moved) {
+        ReproducirSonido("move");
         dragCartas.clear();
         dropColResaltado = -1;
+        animTimer.stop();
         klondike.autoFoundation();
         movimientos++;
         emit MovimientosChanged(movimientos);
         CalcularPuntuacion();
         update();
+        if (klondike.HaGanado()) {
+            timerReloj.stop();
+            CalcularPuntuacion();
+            ReproducirSonido("win");
+            emit Gano();
+        }
     } else {
+        animTimer.stop();
+        dragCartas.clear();
+        dragLift = 0.0f;
         update();
     }
 }

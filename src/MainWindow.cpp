@@ -1,5 +1,7 @@
 #include "MainWindow.h"
 #include "TableroWidget.h"
+#include <QMessageBox>
+#include <QTimer>
 
 DWIDGET_USE_NAMESPACE
 
@@ -20,6 +22,14 @@ MainWindow::MainWindow(QWidget *parent) : DMainWindow(parent) {
 
     connect(tablero, &TableroWidget::PuntuacionChanged, this, [this](int) {
         ActualizarTitulo();
+    });
+
+    connect(tablero, &TableroWidget::Gano, this, [this]() {
+        QTimer::singleShot(100, this, [this]() {
+            QMessageBox::information(this,
+                tr("Felicidades"),
+                tr("Has ganado el juego!"));
+        });
     });
 
     tablero->IniciarJuego();
