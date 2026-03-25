@@ -32,7 +32,7 @@ MainWindow::MainWindow(QWidget *parent) : DMainWindow(parent) {
         });
     });
 
-    tablero->IniciarJuego();
+    tablero->IniciarJuego(Juego::Klondike);
     ActualizarTitulo();
 }
 

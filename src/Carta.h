@@ -4,6 +4,7 @@
 #include <QString>
 
 enum class Palo { Trebol, Diamante, Corazon, Espada };
+enum class Juego { Klondike, Spider, FreeCell };
 enum class Dificultad { Facil, Medio, Dificil };
 
 struct Carta {

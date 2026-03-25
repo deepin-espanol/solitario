@@ -8,6 +8,7 @@
 #include "Carta.h"
 #include "Monton.h"
 #include "JuegoKlondike.h"
+#include "JuegoSpider.h"
 
 class QSoundEffect;
 
@@ -25,7 +26,7 @@ class TableroWidget : public QWidget {
 public:
     explicit TableroWidget(QWidget *parent = nullptr);
 
-    void IniciarJuego();
+    void IniciarJuego(Juego tipo);
 
     int TiempoSegundos() const { return tiempoSegundos; }
     int Puntuacion() const { return puntuacion; }
@@ -58,10 +59,12 @@ private:
     void DibujarDropTarget(QPainter &p, int col);
     void DibujarFondo(QPainter &p);
     void DibujarKlondike(QPainter &p);
+    void DibujarSpider(QPainter &p);
     void DibujarStockCount(QPainter &p, int count, int x, int y, int w, int h);
 
     int HitTest(int mx, int my, int &col, int &idx);
     void IniciarDrag(int mx, int my);
+    bool HaGanado() const;
     int ColumnaObjetivo(int mx, int my) const;
     bool ValidarDropEnColumna(int tgtCol);
 
@@ -71,7 +74,10 @@ private:
     int EspaciadoX() const;
     int EspaciadoY() const;
 
+    Juego tipoJuego = Juego::Klondike;
+    Dificultad dificultad = Dificultad::Medio;
     JuegoKlondike klondike;
+    JuegoSpider spider;
 
     // Drag state
     bool dragging = false;
