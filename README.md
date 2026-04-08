@@ -2,6 +2,12 @@
 
 Juego de cartas tipo solitario para Deepin, desarrollado con Qt6 y Deepin Tool Kit (DTK6).
 
+## Variantes
+
+- **Klondike** - El clásico solitario con 7 columnas, stock y 4 fundaciones
+- **Spider** - Spider Solitaire con 10 columnas y secuencias completas de K a A
+- **FreeCell** - 4 celdas libres, 8 columnas, todas las cartas boca arriba
+
 ## Dependencias
 
 ```bash

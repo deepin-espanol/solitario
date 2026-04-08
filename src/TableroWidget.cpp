@@ -69,6 +69,7 @@ void TableroWidget::IniciarJuego(Juego tipo) {
     switch (tipo) {
     case Juego::Klondike: klondike.Iniciar(dificultad); break;
     case Juego::Spider:   spider.Iniciar(dificultad);   break;
+    case Juego::FreeCell: freecell.Iniciar(dificultad);  break;
     }
 
     // Shuffle animation
@@ -101,6 +102,7 @@ void TableroWidget::IniciarJuego(Juego tipo) {
     switch (tipo) {
     case Juego::Klondike: addCards(klondike.Columnas(), 7); break;
     case Juego::Spider:   addCards(spider.Columnas(), 10);  break;
+    case Juego::FreeCell: addCards(freecell.Columnas(), 8);  break;
     }
 
     if (!shuffleCards.isEmpty()) {
@@ -152,6 +154,10 @@ void TableroWidget::CalcularPuntuacion() {
         break;
     case Juego::Spider:
         for (int i = 0; i < 8; i++) base += spider.Foundations()[i].Tamanio() * 100;
+        base -= movimientos;
+        break;
+    case Juego::FreeCell:
+        for (int i = 0; i < 4; i++) base += freecell.Foundations()[i].Tamanio() * 10;
         base -= movimientos;
         break;
     }
@@ -216,7 +222,8 @@ void TableroWidget::ReproducirSonido(const QString &tipo) {
 }
 
 int TableroWidget::AnchoCarta() const {
-    int cols = (tipoJuego == Juego::Spider) ? 10 : 7;
+    int cols = (tipoJuego == Juego::Spider) ? 10 :
+               (tipoJuego == Juego::FreeCell) ? 8 : 7;
     return qMax(40, qMin(70, (width() - 40) / cols));
 }
 
@@ -225,7 +232,8 @@ int TableroWidget::AltoCarta() const {
 }
 
 int TableroWidget::EspaciadoX() const {
-    int cols = (tipoJuego == Juego::Spider) ? 10 : 7;
+    int cols = (tipoJuego == Juego::Spider) ? 10 :
+               (tipoJuego == Juego::FreeCell) ? 8 : 7;
     return qMax(4, (width() - cols * AnchoCarta()) / (cols + 1));
 }
 
@@ -247,7 +255,8 @@ int TableroWidget::ColumnaObjetivo(int mx, int my) const {
     int sx = EspaciadoX(), sy = EspaciadoY();
     int topY = sy;
     int colY = (tipoJuego == Juego::Spider) ? (sx + h + sy * 2) : (topY + h + sy * 2);
-    int numCols = (tipoJuego == Juego::Spider) ? 10 : 7;
+    int numCols = (tipoJuego == Juego::Spider) ? 10 :
+                  (tipoJuego == Juego::FreeCell) ? 8 : 7;
 
     for (int i = 0; i < numCols; i++) {
         int x = sx + i * (w + sx);
@@ -277,6 +286,7 @@ void TableroWidget::paintEvent(QPaintEvent *) {
     switch (tipoJuego) {
     case Juego::Klondike: DibujarKlondike(p); break;
     case Juego::Spider:   DibujarSpider(p);   break;
+    case Juego::FreeCell: DibujarFreeCell(p); break;
     }
 }
 
@@ -627,6 +637,62 @@ void TableroWidget::DibujarSpider(QPainter &p) {
     }
 }
 
+void TableroWidget::DibujarFreeCell(QPainter &p) {
+    int w = AnchoCarta(), h = AltoCarta();
+    int sx = EspaciadoX(), sy = EspaciadoY();
+    int topY = sy;
+
+    if (dragging) DibujarDropTarget(p, dropColResaltado);
+
+    int numFreeCells = freecell.CeldasLibres().size();
+    for (int i = 0; i < numFreeCells; i++) {
+        int x = sx + i * (w + sx);
+        QRect r(x, topY, w, h);
+        p.setPen(QPen(QColor(255, 255, 255, 60), 1, Qt::DashLine));
+        p.setBrush(QColor(255, 255, 255, 15));
+        p.drawRoundedRect(r, 4, 4);
+        if (!freecell.CeldasLibres()[i].EsVacia()) {
+            DibujarCarta(p, freecell.CeldasLibres()[i], x, topY, w, h);
+        }
+    }
+
+    for (int i = 0; i < 4; i++) {
+        int x = width() - (4 - i) * (w + sx) + sx;
+        QRect r(x, topY, w, h);
+        p.setPen(QPen(QColor(255, 255, 255, 60), 1, Qt::DashLine));
+        p.setBrush(QColor(255, 255, 255, 15));
+        p.drawRoundedRect(r, 4, 4);
+        if (!freecell.Foundations()[i].Vacia()) {
+            DibujarCarta(p, freecell.Foundations()[i].Top(), x, topY, w, h);
+        }
+    }
+
+    int colY = topY + h + sy * 2;
+    for (int i = 0; i < 8; i++) {
+        int x = sx + i * (w + sx);
+        if (freecell.Columnas()[i].Vacia()) {
+            QRect r(x, colY, w, h);
+            p.setPen(QPen(QColor(255, 255, 255, 40), 1, Qt::DashLine));
+            p.setBrush(QColor(255, 255, 255, 10));
+            p.drawRoundedRect(r, 4, 4);
+        }
+        for (int j = 0; j < freecell.Columnas()[i].Tamanio(); j++) {
+            const Carta &c = freecell.Columnas()[i].cartas[j];
+            int cy = colY + j * sy;
+            if (dragging && i == dragCol && j >= dragIdx) continue;
+            DibujarCarta(p, c, x, cy, w, h);
+        }
+    }
+
+    if (dragging) {
+        for (int i = 0; i < dragCartas.size(); i++) {
+            int px = dragMouseFinal.x() - w/2;
+            int py = dragMouseFinal.y() + i * EspaciadoY();
+            DibujarCarta(p, dragCartas[i], px, py, w, h, dragLift);
+        }
+    }
+}
+
 int TableroWidget::HitTest(int mx, int my, int &col, int &idx) {
     int w = AnchoCarta(), h = AltoCarta();
     int sx = EspaciadoX(), sy = EspaciadoY();
@@ -662,7 +728,18 @@ int TableroWidget::HitTest(int mx, int my, int &col, int &idx) {
         }
     }
 
-    int numCols = (tipoJuego == Juego::Spider) ? 10 : 7;
+    if (tipoJuego == Juego::FreeCell) {
+        int numFree = freecell.CeldasLibres().size();
+        for (int i = 0; i < numFree; i++) {
+            int fx = sx + i * (w + sx);
+            if (QRect(fx, topY, w, h).contains(mx, my)) {
+                col = -4 - i; idx = -1; return 4;
+            }
+        }
+    }
+
+    int numCols = (tipoJuego == Juego::Spider) ? 10 :
+                  (tipoJuego == Juego::FreeCell) ? 8 : 7;
 
     for (int i = numCols - 1; i >= 0; i--) {
         int x = sx + i * (w + sx);
@@ -670,6 +747,7 @@ int TableroWidget::HitTest(int mx, int my, int &col, int &idx) {
         switch (tipoJuego) {
         case Juego::Klondike: m = &klondike.Columnas()[i]; break;
         case Juego::Spider:   m = &spider.Columnas()[i];   break;
+        case Juego::FreeCell: m = &freecell.Columnas()[i];  break;
         }
         int numCartas = m->Tamanio();
 
@@ -734,12 +812,36 @@ void TableroWidget::IniciarDrag(int mx, int my) {
     int col, idx;
     HitTest(mx, my, col, idx);
 
+    if (tipoJuego == Juego::FreeCell && col <= -4 && col >= -7) {
+        int celda = -(col + 4);
+        if (celda < 0 || celda >= 4) return;
+        if (freecell.CeldasLibres()[celda].EsVacia()) return;
+
+        dragCol = col;
+        dragIdx = -1;
+        dragCartas.clear();
+        dragCartas.append(freecell.CeldasLibres()[celda]);
+        dragging = true;
+
+        int w = AnchoCarta();
+        int sx = EspaciadoX(), sy = EspaciadoY();
+        int topY = sy;
+        int x = sx + celda * (w + sx);
+        dragOrigen = QPoint(x + w/2, topY);
+        dragMouseActual = QPoint(mx, my);
+        dragMouseFinal = dragOrigen;
+        dragLift = 0.0f;
+        animTimer.start();
+        return;
+    }
+
     if (col < 0) return;
 
     QVector<Carta> *cartas = nullptr;
     switch (tipoJuego) {
     case Juego::Klondike: cartas = &klondike.Columnas()[col].cartas; break;
     case Juego::Spider:   cartas = &spider.Columnas()[col].cartas;   break;
+    case Juego::FreeCell: cartas = &freecell.Columnas()[col].cartas;  break;
     }
 
     if (idx >= cartas->size()) return;
@@ -772,7 +874,6 @@ void TableroWidget::IniciarDrag(int mx, int my) {
     dragMouseFinal = dragOrigen;
     animTimer.start();
 }
-
 void TableroWidget::AnimarDrag() {
     bool needsUpdate = false;
 
@@ -823,18 +924,35 @@ void TableroWidget::mouseReleaseEvent(QMouseEvent *event) {
     HitTest(event->pos().x(), event->pos().y(), col, idx);
     bool moved = false;
 
-    if (dragCol == -1 && tipoJuego == Juego::Klondike) {
+    if (tipoJuego == Juego::FreeCell && dragCol <= -4 && dragCol >= -7) {
+        int celda = -(dragCol + 4);
+        if (col >= 0) {
+            moved = freecell.MoverAColumnaDesdeCeldaLibre(celda, col);
+        } else if (col <= -2 && col >= -5) {
+            moved = freecell.MoverAFoundationDesdeCeldaLibre(celda);
+        } else if (col <= -4 && col >= -7 && col != dragCol) {
+            int aCelda = -(col + 4);
+            moved = freecell.MoverACeldaLibreDesdeCeldaLibre(celda, aCelda);
+        }
+    } else if (dragCol == -1 && tipoJuego == Juego::Klondike) {
         if (col >= 0) moved = klondike.MoverAColumna(-1, 0, col);
         if (!moved) moved = klondike.MoverAFoundation(-1, 0);
     } else if (col >= 0) {
         switch (tipoJuego) {
         case Juego::Klondike: moved = klondike.MoverAColumna(dragCol, dragIdx, col); break;
         case Juego::Spider:   moved = spider.MoverAColumna(dragCol, dragIdx, col); break;
+        case Juego::FreeCell: moved = freecell.MoverAColumna(dragCol, dragIdx, col); break;
         }
     } else if (col <= -2 && col >= -5) {
         if (tipoJuego == Juego::Klondike) {
             if (dragCol == -1) moved = klondike.MoverAFoundation(-1, 0);
             else moved = klondike.MoverAFoundation(dragCol, dragIdx);
+        } else if (tipoJuego == Juego::FreeCell) {
+            if (dragCol >= 0) moved = freecell.MoverAFoundation(dragCol, dragIdx);
+        }
+    } else if (col <= -4 && col >= -7) {
+        if (tipoJuego == Juego::FreeCell && dragCol >= 0 && dragCartas.size() == 1) {
+            moved = freecell.MoverACeldaLibre(dragCol, dragIdx);
         }
     }
 
@@ -872,6 +990,7 @@ bool TableroWidget::HaGanado() const {
     switch (tipoJuego) {
     case Juego::Klondike: return klondike.HaGanado();
     case Juego::Spider:   return spider.HaGanado();
+    case Juego::FreeCell: return freecell.HaGanado();
     }
     return false;
 }
@@ -892,6 +1011,12 @@ bool TableroWidget::ValidarDropEnColumna(int tgtCol) {
         const Monton &dest = spider.Columnas()[tgtCol];
         if (dest.Vacia()) return true;
         return dest.Top().valor == first.valor + 1;
+    }
+    case Juego::FreeCell: {
+        const Monton &dest = freecell.Columnas()[tgtCol];
+        if (dest.Vacia()) return true;
+        const Carta &top = dest.Top();
+        return top.EsRojo() != first.EsRojo() && top.valor == first.valor + 1;
     }
     }
     return false;
