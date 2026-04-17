@@ -119,6 +119,12 @@ bool JuegoSpider::CompletarSecuencia(int col) {
 bool JuegoSpider::sacarDeStock() {
     if (stock.Tamanio() < 10) return false;
 
+    bool anyEmpty = false;
+    for (auto &c : columnas) {
+        if (c.Vacia()) { anyEmpty = true; break; }
+    }
+    if (anyEmpty) return false;
+
     for (int i = 0; i < 10; i++) {
         Carta c = stock.Quitar();
         c.bocaArriba = true;
