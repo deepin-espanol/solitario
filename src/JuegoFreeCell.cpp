@@ -6,6 +6,8 @@ void JuegoFreeCell::Iniciar(Dificultad dif) {
     celdasLibres.clear();
     columnas.clear();
     foundations.clear();
+    historial.clear();
+    redoHistorial.clear();
 
     int numCeldas;
     switch (dif) {
@@ -106,6 +108,9 @@ bool JuegoFreeCell::MoverAColumna(int desdeCol, int desdeIdx, int aCol) {
 
     origen.cartas.resize(desdeIdx);
     for (auto &c : cartas) dest.Agregar(c);
+
+    historial.append({Accion::MoverColumnas, desdeCol, desdeIdx, aCol, (int)cartas.size(), false});
+    redoHistorial.clear();
     return true;
 }
 
@@ -207,6 +212,36 @@ bool JuegoFreeCell::autoFoundation() {
             }
             if (moved) break;
         }
+    }
+    return true;
+}
+
+bool JuegoFreeCell::Deshacer() {
+    if (historial.isEmpty()) return false;
+    Accion a = historial.takeLast();
+    redoHistorial.append(a);
+
+    if (a.tipo == Accion::MoverColumnas) {
+        auto &dest = columnas[a.aCol];
+        QVector<Carta> cartas;
+        for (int i = 0; i < a.cartasMovidas; i++) cartas.prepend(dest.Quitar());
+        for (auto &c : cartas) columnas[a.desdeCol].Agregar(c);
+    }
+    return true;
+}
+
+bool JuegoFreeCell::Rehacer() {
+    if (redoHistorial.isEmpty()) return false;
+    Accion a = redoHistorial.takeLast();
+    historial.append(a);
+
+    if (a.tipo == Accion::MoverColumnas) {
+        auto &origen = columnas[a.desdeCol];
+        int start = origen.Tamanio() - a.cartasMovidas;
+        QVector<Carta> cartas;
+        for (int i = start; i < origen.Tamanio(); i++) cartas.append(origen.cartas[i]);
+        origen.cartas.resize(start);
+        for (auto &c : cartas) columnas[a.aCol].Agregar(c);
     }
     return true;
 }

@@ -6,6 +6,8 @@ void JuegoSpider::Iniciar(Dificultad dif) {
     stock.Limpiar();
     columnas.clear();
     foundations.clear();
+    historial.clear();
+    redoHistorial.clear();
 
     int palos;
     switch (dif) {
@@ -75,6 +77,9 @@ bool JuegoSpider::MoverAColumna(int desdeCol, int desdeIdx, int aCol) {
     origen.cartas.resize(desdeIdx);
     for (auto &c : cartas) dest.Agregar(c);
 
+    historial.append({Accion::MoverColumnas, desdeCol, desdeIdx, aCol, int(cartas.size()), false});
+    redoHistorial.clear();
+
     if (!origen.Vacia() && !origen.Top().bocaArriba) {
         origen.Top().bocaArriba = true;
     }
@@ -129,6 +134,67 @@ bool JuegoSpider::sacarDeStock() {
         Carta c = stock.Quitar();
         c.bocaArriba = true;
         columnas[i].Agregar(c);
+    }
+    historial.append({Accion::StockDraw, -3, 0, -1, 10, false});
+    redoHistorial.clear();
+    return true;
+}
+
+bool JuegoSpider::Deshacer() {
+    if (historial.isEmpty()) return false;
+    Accion a = historial.takeLast();
+    redoHistorial.append(a);
+
+    switch (a.tipo) {
+    case Accion::MoverColumnas: {
+        auto &dest = columnas[a.aCol];
+        QVector<Carta> cartas;
+        for (int i = 0; i < a.cartasMovidas; i++) cartas.prepend(dest.Quitar());
+        for (auto &c : cartas) columnas[a.desdeCol].Agregar(c);
+        // Revert auto-flip if needed
+        if (!columnas[a.desdeCol].Vacia()) {
+            int restoredIdx = columnas[a.desdeCol].Tamanio() - cartas.size();
+            if (restoredIdx - 1 >= 0 && columnas[a.desdeCol].cartas[restoredIdx - 1].bocaArriba) {
+                columnas[a.desdeCol].cartas[restoredIdx - 1].bocaArriba = false;
+            }
+        }
+        break;
+    }
+    case Accion::StockDraw:
+        for (int i = 9; i >= 0; i--) {
+            if (!columnas[i].Vacia()) {
+                Carta c = columnas[i].Quitar();
+                c.bocaArriba = false;
+                stock.Agregar(c);
+            }
+        }
+        break;
+    }
+    return true;
+}
+
+bool JuegoSpider::Rehacer() {
+    if (redoHistorial.isEmpty()) return false;
+    Accion a = redoHistorial.takeLast();
+    historial.append(a);
+
+    switch (a.tipo) {
+    case Accion::MoverColumnas: {
+        auto &origen = columnas[a.desdeCol];
+        QVector<Carta> cartas;
+        int start = origen.Tamanio() - a.cartasMovidas;
+        for (int i = start; i < origen.Tamanio(); i++) cartas.append(origen.cartas[i]);
+        origen.cartas.resize(start);
+        for (auto &c : cartas) columnas[a.aCol].Agregar(c);
+        break;
+    }
+    case Accion::StockDraw:
+        for (int i = 0; i < 10; i++) {
+            Carta c = stock.Quitar();
+            c.bocaArriba = true;
+            columnas[i].Agregar(c);
+        }
+        break;
     }
     return true;
 }

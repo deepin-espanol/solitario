@@ -45,7 +45,12 @@ protected:
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
+    void keyPressEvent(QKeyEvent *event) override;
 
+public slots:
+    void Deshacer();
+    void Rehacer();
+    void CancelarDrag();
 private slots:
     void AnimarDrag();
     void TickTemporizador();
@@ -92,6 +97,10 @@ private:
     QPoint dragMouseFinal;
     float dragLift = 0.0f;
     QTimer animTimer;
+    bool snapeando = false;
+    QPoint snapOrigen;
+    QPoint snapDestino;
+    float snapProgreso = 0.0f;
 
     int dropColResaltado = -1;
     bool dropValido = false;

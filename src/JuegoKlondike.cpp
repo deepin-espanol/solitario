@@ -7,6 +7,8 @@ void JuegoKlondike::Iniciar(Dificultad dif) {
     waste.Limpiar();
     columnas.clear();
     foundations.clear();
+    historial.clear();
+    redoHistorial.clear();
 
     QVector<Carta> mazo;
     for (int p = 0; p < 4; p++) {
@@ -35,6 +37,11 @@ void JuegoKlondike::Iniciar(Dificultad dif) {
     }
 }
 
+void JuegoKlondike::GuardarAccion(Accion::Tipo tipo, int desdeCol, int desdeIdx, int aCol, int cartasMovidas, bool volteoAuto) {
+    historial.append({tipo, desdeCol, desdeIdx, aCol, cartasMovidas, volteoAuto});
+    redoHistorial.clear();
+}
+
 bool JuegoKlondike::MoverAColumna(int desdeCol, int desdeIdx, int aCol) {
     if (desdeCol < -1 || desdeCol >= (int)columnas.size() || aCol < 0 || aCol >= (int)columnas.size())
         return false;
@@ -61,6 +68,8 @@ bool JuegoKlondike::MoverAColumna(int desdeCol, int desdeIdx, int aCol) {
     } else {
         if (cartas.first().valor != 13) return false;
     }
+
+    GuardarAccion(Accion::MoverColumnas, desdeCol, desdeIdx, aCol, (int)cartas.size());
 
     if (desdeCol == -1) {
         waste.Quitar();
@@ -106,6 +115,8 @@ bool JuegoKlondike::MoverAFoundation(int desdeCol, int desdeIdx) {
     }
     foundations[foundIdx].Agregar(c);
 
+    GuardarAccion(Accion::Foundation, desdeCol, desdeIdx, foundIdx, 1);
+
     if (desdeCol >= 0 && !columnas[desdeCol].Vacia() && !columnas[desdeCol].Top().bocaArriba) {
         columnas[desdeCol].Top().bocaArriba = true;
     }
@@ -121,11 +132,13 @@ bool JuegoKlondike::sacarDeStock() {
         std::reverse(temp.begin(), temp.end());
         stock.cartas = temp;
         waste.Limpiar();
+        GuardarAccion(Accion::StockDraw, -1, temp.size(), -1, 0);
         return true;
     }
     Carta c = stock.Quitar();
     c.bocaArriba = true;
     waste.Agregar(c);
+    GuardarAccion(Accion::StockDraw, -1, 1, -1, 1);
     return true;
 }
 
@@ -140,11 +153,13 @@ bool JuegoKlondike::autoFoundation() {
                 if (f.Vacia() && c.valor == 1) {
                     waste.Quitar();
                     f.Agregar(c);
+                    GuardarAccion(Accion::Foundation, -1, 0, i, 1);
                     moved = true;
                     break;
                 } else if (!f.Vacia() && f.Top().palo == c.palo && f.Top().valor == c.valor - 1) {
                     waste.Quitar();
                     f.Agregar(c);
+                    GuardarAccion(Accion::Foundation, -1, 0, i, 1);
                     moved = true;
                     break;
                 }
@@ -164,17 +179,130 @@ bool JuegoKlondike::autoFoundation() {
                 if (f.Vacia() && c.valor == 1) {
                     columnas[i].Quitar();
                     f.Agregar(c);
+                    GuardarAccion(Accion::Foundation, i, origIdx, fi, 1);
                     moved = true;
                     break;
                 } else if (!f.Vacia() && f.Top().palo == c.palo && f.Top().valor == c.valor - 1) {
                     columnas[i].Quitar();
                     f.Agregar(c);
+                    GuardarAccion(Accion::Foundation, i, origIdx, fi, 1);
                     moved = true;
                     break;
                 }
             }
             if (moved) break;
         }
+    }
+    return true;
+}
+
+bool JuegoKlondike::Deshacer() {
+    if (historial.isEmpty()) return false;
+
+    Accion a = historial.takeLast();
+    redoHistorial.append(a);
+
+    switch (a.tipo) {
+    case Accion::MoverColumnas: {
+        auto &dest = columnas[a.aCol];
+        QVector<Carta> cartas;
+        for (int i = 0; i < a.cartasMovidas; i++) cartas.prepend(dest.Quitar());
+        if (a.desdeCol == -1) {
+            waste.Agregar(cartas.first());
+        } else {
+            for (auto &c : cartas) columnas[a.desdeCol].Agregar(c);
+        }
+        break;
+    }
+    case Accion::Foundation: {
+        Carta c = foundations[a.aCol].Quitar();
+        if (a.desdeCol == -1) {
+            waste.Agregar(c);
+        } else {
+            columnas[a.desdeCol].Agregar(c);
+        }
+        break;
+    }
+    case Accion::StockDraw: {
+        if (a.cartasMovidas == 0) {
+            // Stock was recycled: restore waste from stock
+            std::reverse(stock.cartas.begin(), stock.cartas.end());
+            for (auto &c : stock.cartas) c.bocaArriba = true;
+            waste.cartas = stock.cartas;
+            stock.Limpiar();
+        } else {
+            // Single card draw: return card from waste back to stock face-down
+            Carta c = waste.Quitar();
+            c.bocaArriba = false;
+            stock.Agregar(c);
+        }
+        break;
+    }
+    case Accion::AutoFlip:
+        if (a.desdeCol >= 0 && a.desdeCol < columnas.size()) {
+            if (!columnas[a.desdeCol].Vacia() && columnas[a.desdeCol].Top().bocaArriba) {
+                columnas[a.desdeCol].Top().bocaArriba = false;
+            }
+        }
+        break;
+    }
+    return true;
+}
+
+bool JuegoKlondike::Rehacer() {
+    if (redoHistorial.isEmpty()) return false;
+    Accion a = redoHistorial.takeLast();
+    historial.append(a);
+
+    switch (a.tipo) {
+    case Accion::MoverColumnas: {
+        QVector<Carta> cartas;
+        if (a.desdeCol == -1) {
+            if (waste.Vacia()) return false;
+            cartas.append(waste.Quitar());
+        } else {
+            auto &origen = columnas[a.desdeCol];
+            int start = origen.Tamanio() - a.cartasMovidas;
+            for (int i = start; i < origen.Tamanio(); i++) {
+                cartas.append(origen.cartas[i]);
+            }
+            origen.cartas.resize(start);
+        }
+        for (auto &c : cartas) columnas[a.aCol].Agregar(c);
+        break;
+    }
+    case Accion::Foundation: {
+        Carta c;
+        if (a.desdeCol == -1) {
+            if (waste.Vacia()) return false;
+            c = waste.Quitar();
+        } else {
+            c = columnas[a.desdeCol].Quitar();
+        }
+        foundations[a.aCol].Agregar(c);
+        break;
+    }
+    case Accion::StockDraw: {
+        if (a.cartasMovidas == 0) {
+            // Recycle waste back to stock
+            QVector<Carta> temp = waste.cartas;
+            for (auto &c : temp) c.bocaArriba = false;
+            std::reverse(temp.begin(), temp.end());
+            stock.cartas = temp;
+            waste.Limpiar();
+        } else {
+            // Single card draw: move from stock to waste
+            Carta c = stock.Quitar();
+            c.bocaArriba = true;
+            waste.Agregar(c);
+        }
+        break;
+    }
+    case Accion::AutoFlip:
+        if (a.desdeCol >= 0 && !columnas[a.desdeCol].Vacia()) {
+            columnas[a.desdeCol].Top().bocaArriba = true;
+        }
+        break;
     }
     return true;
 }

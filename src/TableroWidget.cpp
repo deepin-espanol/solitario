@@ -10,6 +10,7 @@
 #include <QUrl>
 #include <QDir>
 #include <QStandardPaths>
+#include <QKeySequence>
 #include <cmath>
 
 static QByteArray GenerarTono(int freq, int durationMs, int sampleRate = 44100) {
@@ -895,6 +896,19 @@ void TableroWidget::AnimarDrag() {
         }
     }
 
+    if (snapeando) {
+        snapProgreso = qMin(1.0f, snapProgreso + 0.10f);
+        float e = 1.0f - std::pow(1.0f - snapProgreso, 3);
+        dragMouseFinal = snapOrigen + (snapDestino - snapOrigen) * e;
+        dragLift = 1.0f - e;
+        needsUpdate = true;
+        if (snapProgreso >= 1.0f) {
+            snapeando = false;
+            dragCartas.clear();
+            animTimer.stop();
+        }
+    }
+
     if (needsUpdate) update();
     else if (dragging && (dragMouseActual - dragMouseFinal).manhattanLength() == 0 && dragLift >= 1.0f) {
         animTimer.stop();
@@ -979,11 +993,68 @@ void TableroWidget::mouseReleaseEvent(QMouseEvent *event) {
             emit Gano();
         }
     } else {
-        animTimer.stop();
-        dragCartas.clear();
-        dragLift = 0.0f;
+        snapOrigen = dragMouseFinal;
+        snapDestino = dragOrigen;
+        snapProgreso = 0.0f;
+        snapeando = true;
+        animTimer.start();
+    }
+}
+
+void TableroWidget::Deshacer() {
+    bool ok = false;
+    switch (tipoJuego) {
+    case Juego::Klondike: ok = klondike.Deshacer(); break;
+    case Juego::Spider:   ok = spider.Deshacer();   break;
+    case Juego::FreeCell: ok = freecell.Deshacer();  break;
+    }
+    if (ok) {
+        movimientos++;
+        emit MovimientosChanged(movimientos);
+        CalcularPuntuacion();
         update();
     }
+}
+
+void TableroWidget::Rehacer() {
+    bool ok = false;
+    switch (tipoJuego) {
+    case Juego::Klondike: ok = klondike.Rehacer(); break;
+    case Juego::Spider:   ok = spider.Rehacer();   break;
+    case Juego::FreeCell: ok = freecell.Rehacer();  break;
+    }
+    if (ok) {
+        movimientos++;
+        emit MovimientosChanged(movimientos);
+        CalcularPuntuacion();
+        update();
+    }
+}
+
+void TableroWidget::CancelarDrag() {
+    if (!dragging && !snapeando) return;
+    dragging = false;
+    snapeando = false;
+    dropColResaltado = -1;
+    dragCartas.clear();
+    animTimer.stop();
+    update();
+}
+
+void TableroWidget::keyPressEvent(QKeyEvent *event) {
+    if (event->matches(QKeySequence::Undo)) {
+        Deshacer();
+        return;
+    }
+    if (event->matches(QKeySequence::Redo)) {
+        Rehacer();
+        return;
+    }
+    if (event->key() == Qt::Key_Escape) {
+        CancelarDrag();
+        return;
+    }
+    QWidget::keyPressEvent(event);
 }
 
 bool TableroWidget::HaGanado() const {

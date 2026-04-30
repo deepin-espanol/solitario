@@ -13,6 +13,9 @@ public:
     bool voltear(int col);
     bool sacarDeStock();
     bool autoFoundation();
+    bool Deshacer();
+    bool Rehacer();
+    bool HayDeshacer() const { return !historial.isEmpty(); }
     bool HaGanado() const;
     QVector<Carta> &Stock() { return stock.cartas; }
     QVector<Carta> &Waste() { return waste.cartas; }
@@ -26,12 +29,20 @@ public:
     const QVector<Monton> &Foundations() const { return foundations; }
     const Monton &StockMonton() const { return stock; }
     const Monton &WasteMonton() const { return waste; }
+    const QVector<Accion> &Historial() const { return historial; }
+    const QVector<Accion> &RedoHistorial() const { return redoHistorial; }
+    void SetHistorial(const QVector<Accion> &h) { historial = h; }
+    void SetRedoHistorial(const QVector<Accion> &h) { redoHistorial = h; }
 
 private:
+    void GuardarAccion(Accion::Tipo tipo, int desdeCol, int desdeIdx, int aCol, int cartasMovidas, bool volteoAuto = false);
+
     Monton stock;
     Monton waste;
     QVector<Monton> columnas;
     QVector<Monton> foundations;
+    QVector<Accion> historial;
+    QVector<Accion> redoHistorial;
 };
 
 #endif
