@@ -13,11 +13,17 @@ class MainWindow : public DMainWindow {
 public:
     explicit MainWindow(QWidget *parent = nullptr);
 
+protected:
+    void closeEvent(QCloseEvent *event) override;
+
 private:
     void ActualizarTitulo();
+    void GuardarPartida();
+    void CargarPartida();
 
     TableroWidget *tablero;
     DMenu *menuJuego;
+    Juego juegoActual = Juego::Klondike;
 };
 
 #endif

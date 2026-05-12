@@ -2,8 +2,20 @@
 #include "TableroWidget.h"
 #include <QMessageBox>
 #include <QTimer>
+#include <QCloseEvent>
+#include <QFile>
+#include <QDir>
+#include <QStandardPaths>
+#include <QJsonDocument>
+#include <QJsonObject>
 
 DWIDGET_USE_NAMESPACE
+
+static QString SavePath() {
+    QString p = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    QDir().mkpath(p);
+    return p;
+}
 
 MainWindow::MainWindow(QWidget *parent) : DMainWindow(parent) {
     resize(1024, 720);
@@ -32,8 +44,40 @@ MainWindow::MainWindow(QWidget *parent) : DMainWindow(parent) {
         });
     });
 
-    tablero->IniciarJuego(Juego::Klondike);
-    ActualizarTitulo();
+    CargarPartida();
+}
+
+void MainWindow::closeEvent(QCloseEvent *event) {
+    GuardarPartida();
+    event->accept();
+}
+
+void MainWindow::GuardarPartida() {
+    QString path = SavePath() + "/partida.json";
+    QString data = tablero->SerializarEstado();
+    QFile f(path);
+    if (f.open(QIODevice::WriteOnly)) {
+        f.write(data.toUtf8());
+        f.close();
+    }
+}
+
+void MainWindow::CargarPartida() {
+    QString path = SavePath() + "/partida.json";
+    QFile f(path);
+    if (!f.exists()) {
+        tablero->IniciarJuego(Juego::Klondike);
+        return;
+    }
+    if (f.open(QIODevice::ReadOnly)) {
+        QString data = QString::fromUtf8(f.readAll());
+        f.close();
+        tablero->IniciarJuegoFromJson(data);
+        juegoActual = tablero->TipoJuego();
+        ActualizarTitulo();
+    } else {
+        tablero->IniciarJuego(Juego::Klondike);
+    }
 }
 
 void MainWindow::ActualizarTitulo() {

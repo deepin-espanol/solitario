@@ -11,6 +11,11 @@
 #include <QDir>
 #include <QStandardPaths>
 #include <QKeySequence>
+#include <QJsonDocument>
+#include <QJsonObject>
+#include <QJsonArray>
+#include <QFile>
+#include <QStandardPaths>
 #include <cmath>
 
 static QByteArray GenerarTono(int freq, int durationMs, int sampleRate = 44100) {
@@ -1055,6 +1060,182 @@ void TableroWidget::keyPressEvent(QKeyEvent *event) {
         return;
     }
     QWidget::keyPressEvent(event);
+}
+
+static QJsonArray CartasToJson(const QVector<Carta> &cartas) {
+    QJsonArray arr;
+    for (const auto &c : cartas) {
+        QJsonObject obj;
+        obj["palo"] = static_cast<int>(c.palo);
+        obj["valor"] = c.valor;
+        obj["boca"] = c.bocaArriba;
+        arr.append(obj);
+    }
+    return arr;
+}
+
+static QVector<Carta> CartasFromJson(const QJsonArray &arr) {
+    QVector<Carta> v;
+    for (const auto &val : arr) {
+        QJsonObject o = val.toObject();
+        v.append({static_cast<Palo>(o["palo"].toInt()), o["valor"].toInt(), o["boca"].toBool()});
+    }
+    return v;
+}
+
+static QJsonArray MontonesToJson(const QVector<Monton> &montones) {
+    QJsonArray arr;
+    for (const auto &m : montones) {
+        arr.append(CartasToJson(m.cartas));
+    }
+    return arr;
+}
+
+static QVector<Monton> MontonesFromJson(const QJsonArray &arr) {
+    QVector<Monton> v;
+    for (const auto &val : arr) {
+        Monton m;
+        m.cartas = CartasFromJson(val.toArray());
+        v.append(m);
+    }
+    return v;
+}
+
+static QJsonArray AccionesToJson(const QVector<Accion> &acciones) {
+    QJsonArray arr;
+    for (const auto &a : acciones) {
+        QJsonObject obj;
+        obj["tipo"] = static_cast<int>(a.tipo);
+        obj["desdeCol"] = a.desdeCol;
+        obj["desdeIdx"] = a.desdeIdx;
+        obj["aCol"] = a.aCol;
+        obj["cartasMovidas"] = a.cartasMovidas;
+        obj["volteoAuto"] = a.volteoAuto;
+        arr.append(obj);
+    }
+    return arr;
+}
+
+static QVector<Accion> AccionesFromJson(const QJsonArray &arr) {
+    QVector<Accion> v;
+    for (const auto &val : arr) {
+        QJsonObject o = val.toObject();
+        v.append({static_cast<Accion::Tipo>(o["tipo"].toInt()),
+                  o["desdeCol"].toInt(), o["desdeIdx"].toInt(),
+                  o["aCol"].toInt(), o["cartasMovidas"].toInt(),
+                  o["volteoAuto"].toBool()});
+    }
+    return v;
+}
+
+QString TableroWidget::SerializarEstado() const {
+    QJsonObject root;
+    root["juego"] = static_cast<int>(tipoJuego);
+    root["movimientos"] = movimientos;
+    root["tiempo"] = tiempoSegundos;
+    root["puntuacion"] = puntuacion;
+    root["fondo"] = fondoVerde;
+    root["dificultad"] = static_cast<int>(dificultad);
+
+    switch (tipoJuego) {
+    case Juego::Klondike:
+        root["stock"] = CartasToJson(klondike.Stock());
+        root["waste"] = CartasToJson(klondike.Waste());
+        root["columnas"] = MontonesToJson(klondike.Columnas());
+        root["foundations"] = MontonesToJson(klondike.Foundations());
+        root["historial"] = AccionesToJson(klondike.Historial());
+        root["redo"] = AccionesToJson(klondike.RedoHistorial());
+        break;
+    case Juego::Spider:
+        root["stock"] = CartasToJson(spider.StockMonton().cartas);
+        root["columnas"] = MontonesToJson(spider.Columnas());
+        root["foundations"] = MontonesToJson(spider.Foundations());
+        root["historial"] = AccionesToJson(spider.Historial());
+        root["redo"] = AccionesToJson(spider.RedoHistorial());
+        break;
+    case Juego::FreeCell:
+        root["celdas"] = CartasToJson(freecell.CeldasLibres());
+        root["columnas"] = MontonesToJson(freecell.Columnas());
+        root["foundations"] = MontonesToJson(freecell.Foundations());
+        root["historial"] = AccionesToJson(freecell.Historial());
+        root["redo"] = AccionesToJson(freecell.RedoHistorial());
+        break;
+    }
+
+    return QJsonDocument(root).toJson(QJsonDocument::Compact);
+}
+
+void TableroWidget::IniciarJuegoFromJson(const QString &json) {
+    QJsonDocument doc = QJsonDocument::fromJson(json.toUtf8());
+    if (doc.isNull()) return;
+    QJsonObject root = doc.object();
+
+    tipoJuego = static_cast<Juego>(root["juego"].toInt());
+    movimientos = root["movimientos"].toInt();
+    tiempoSegundos = root["tiempo"].toInt();
+    puntuacion = root["puntuacion"].toInt();
+    fondoVerde = root["fondo"].toInt(0);
+    dificultad = static_cast<Dificultad>(root["dificultad"].toInt(1));
+
+    dragging = false;
+    snapeando = false;
+    dragCartas.clear();
+    dragCol = -1;
+    dragIdx = -1;
+    dropColResaltado = -1;
+    animTimer.stop();
+    timerReloj.stop();
+    barajando = false;
+    shuffleCards.clear();
+
+    switch (tipoJuego) {
+    case Juego::Klondike: {
+        klondike = JuegoKlondike();
+        klondike.StockMonton().cartas = CartasFromJson(root["stock"].toArray());
+        klondike.WasteMonton().cartas = CartasFromJson(root["waste"].toArray());
+        QVector<Monton> cols = MontonesFromJson(root["columnas"].toArray());
+        klondike.Columnas() = std::move(cols);
+        QVector<Monton> fds = MontonesFromJson(root["foundations"].toArray());
+        klondike.Foundations() = std::move(fds);
+        klondike.SetHistorial(AccionesFromJson(root["historial"].toArray()));
+        klondike.SetRedoHistorial(AccionesFromJson(root["redo"].toArray()));
+        break;
+    }
+    case Juego::Spider: {
+        spider = JuegoSpider();
+        spider.StockMonton().cartas = CartasFromJson(root["stock"].toArray());
+        QVector<Monton> cols = MontonesFromJson(root["columnas"].toArray());
+        spider.Columnas() = std::move(cols);
+        QVector<Monton> fds = MontonesFromJson(root["foundations"].toArray());
+        spider.Foundations() = std::move(fds);
+        spider.SetHistorial(AccionesFromJson(root["historial"].toArray()));
+        spider.SetRedoHistorial(AccionesFromJson(root["redo"].toArray()));
+        break;
+    }
+    case Juego::FreeCell: {
+        freecell = JuegoFreeCell();
+        QVector<Carta> celdas = CartasFromJson(root["celdas"].toArray());
+        freecell.CeldasLibres() = std::move(celdas);
+        QVector<Monton> cols = MontonesFromJson(root["columnas"].toArray());
+        freecell.Columnas() = std::move(cols);
+        QVector<Monton> fds = MontonesFromJson(root["foundations"].toArray());
+        freecell.Foundations() = std::move(fds);
+        freecell.SetHistorial(AccionesFromJson(root["historial"].toArray()));
+        freecell.SetRedoHistorial(AccionesFromJson(root["redo"].toArray()));
+        break;
+    }
+    }
+
+    if (tiempoSegundos > 0) timerReloj.start();
+    emit MovimientosChanged(movimientos);
+    emit TiempoChanged(tiempoSegundos);
+    emit PuntuacionChanged(puntuacion);
+    update();
+}
+
+bool TableroWidget::HayPartidaGuardada() {
+    QString path = QStandardPaths::writableLocation(QStandardPaths::AppDataLocation);
+    return QFile::exists(path + "/partida.json");
 }
 
 bool TableroWidget::HaGanado() const {

@@ -28,6 +28,12 @@ public:
     explicit TableroWidget(QWidget *parent = nullptr);
 
     void IniciarJuego(Juego tipo);
+    void IniciarJuegoFromJson(const QString &json);
+    Juego TipoJuego() const { return tipoJuego; }
+    Dificultad DificultadActual() const { return dificultad; }
+
+    QString SerializarEstado() const;
+    bool HayPartidaGuardada();
 
     int TiempoSegundos() const { return tiempoSegundos; }
     int Puntuacion() const { return puntuacion; }
