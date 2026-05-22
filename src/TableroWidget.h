@@ -31,6 +31,7 @@ public:
     void IniciarJuegoFromJson(const QString &json);
     Juego TipoJuego() const { return tipoJuego; }
     Dificultad DificultadActual() const { return dificultad; }
+    void SetDificultad(Dificultad d) { dificultad = d; }
 
     QString SerializarEstado() const;
     bool HayPartidaGuardada();
@@ -38,6 +39,8 @@ public:
     int TiempoSegundos() const { return tiempoSegundos; }
     int Puntuacion() const { return puntuacion; }
     int Movimientos() const { return movimientos; }
+
+    void SetFondoVerde(int variante);
 
 signals:
     void Gano();

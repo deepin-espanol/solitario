@@ -227,6 +227,11 @@ void TableroWidget::ReproducirSonido(const QString &tipo) {
     if (s) s->play();
 }
 
+void TableroWidget::SetFondoVerde(int variante) {
+    fondoVerde = variante;
+    update();
+}
+
 int TableroWidget::AnchoCarta() const {
     int cols = (tipoJuego == Juego::Spider) ? 10 :
                (tipoJuego == Juego::FreeCell) ? 8 : 7;
