@@ -3,6 +3,8 @@
 #include <DMainWindow>
 #include <QCommandLineParser>
 #include <QIcon>
+#include <QTranslator>
+#include <QLocale>
 #include "MainWindow.h"
 
 DWIDGET_USE_NAMESPACE
@@ -12,9 +14,15 @@ int main(int argc, char *argv[]) {
     app.setOrganizationName(QStringLiteral("ghost"));
     app.setApplicationName(QStringLiteral("solitario"));
     app.setApplicationDisplayName(QStringLiteral("Solitario"));
-    app.setApplicationVersion("0.1.0");
+    app.setApplicationVersion("1.0.0");
     app.setWindowIcon(QIcon::fromTheme(QStringLiteral("solitario"),
                         QIcon::fromTheme(QStringLiteral("applications-games"))));
+
+    QTranslator sysTranslator;
+    QString locale = QLocale::system().name();
+    if (sysTranslator.load(QStringLiteral("solitario_") + locale, QStringLiteral(":/i18n"))) {
+        app.installTranslator(&sysTranslator);
+    }
 
     app.setStyle("chameleon");
 

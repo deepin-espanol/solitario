@@ -1,0 +1,22 @@
+<RCC>
+    <qresource prefix="/i18n">
+        <file>solitario_en.qm</file>
+        <file>solitario_zh.qm</file>
+        <file>solitario_hi.qm</file>
+        <file>solitario_es.qm</file>
+        <file>solitario_fr.qm</file>
+        <file>solitario_ar.qm</file>
+        <file>solitario_bn.qm</file>
+        <file>solitario_pt.qm</file>
+        <file>solitario_ru.qm</file>
+        <file>solitario_ja.qm</file>
+        <file>solitario_ko.qm</file>
+        <file>solitario_de.qm</file>
+        <file>solitario_id.qm</file>
+        <file>solitario_tr.qm</file>
+        <file>solitario_it.qm</file>
+        <file>solitario_vi.qm</file>
+        <file>solitario_th.qm</file>
+        <file>solitario_pl.qm</file>
+    </qresource>
+</RCC>
