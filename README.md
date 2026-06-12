@@ -11,7 +11,7 @@ Juego de cartas tipo solitario para Deepin, desarrollado con Qt6 y Deepin Tool K
 ## Dependencias
 
 ```bash
-sudo apt install qt6-base-dev libdtk6widget-dev cmake
+sudo apt install qt6-base-dev qt6-multimedia-dev libdtk6widget-dev cmake
 ```
 
 ## Compilar
@@ -26,4 +26,10 @@ make
 
 ```bash
 ./solitario
+```
+
+## Empaquetar
+
+```bash
+make -f debian/rules binary
 ```

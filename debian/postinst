@@ -1,0 +1,6 @@
+#!/bin/bash
+set -e
+dh_auto_configure -- -DCMAKE_BUILD_TYPE=Release
+dh_auto_build
+dh_auto_install -- DESTDIR=$(pwd)/debian/solitario
+install -D -m 755 build/solitario $(pwd)/debian/solitario/usr/bin/solitario

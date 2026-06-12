@@ -1,0 +1,6 @@
+<RCC>
+    <qresource prefix="/">
+        <file>deepin-logo-2.png</file>
+        <file>logo.svg</file>
+    </qresource>
+</RCC>

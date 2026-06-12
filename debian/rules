@@ -1,0 +1,37 @@
+#!/usr/bin/make -f
+
+PKGDIR = $(CURDIR)/debian/solitario
+PREFIX = /usr
+
+all:
+	mkdir -p build
+	cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(PREFIX)
+	cd build && cmake --build .
+
+clean:
+	rm -rf build
+
+build:
+	mkdir -p build
+	cd build && cmake .. -DCMAKE_BUILD_TYPE=Release -DCMAKE_INSTALL_PREFIX=$(PREFIX)
+	cd build && cmake --build .
+
+install:
+	install -D -m 755 build/solitario $(PKGDIR)$(PREFIX)/bin/solitario
+	mkdir -p $(PKGDIR)$(PREFIX)/share/solitario/translations
+	install -m 644 build/translations/*.qm $(PKGDIR)$(PREFIX)/share/solitario/translations/
+	mkdir -p $(PKGDIR)/DEBIAN
+	echo "Package: solitario" > $(PKGDIR)/DEBIAN/control
+	echo "Version: 1.0.0-1" >> $(PKGDIR)/DEBIAN/control
+	echo "Section: games" >> $(PKGDIR)/DEBIAN/control
+	echo "Priority: optional" >> $(PKGDIR)/DEBIAN/control
+	echo "Architecture: amd64" >> $(PKGDIR)/DEBIAN/control
+	echo "Depends: libc6, libstdc++6" >> $(PKGDIR)/DEBIAN/control
+	echo "Maintainer: ghost <ghost@localhost>" >> $(PKGDIR)/DEBIAN/control
+	echo "Description: Solitario - Juego de cartas" >> $(PKGDIR)/DEBIAN/control
+	echo " Klondike, Spider y FreeCell con interfaz Qt6/Dtk6." >> $(PKGDIR)/DEBIAN/control
+
+binary: build install
+	dpkg-deb --build $(PKGDIR) $(CURDIR)/../solitario_1.0.0-1_amd64.deb
+
+.PHONY: all clean build install binary

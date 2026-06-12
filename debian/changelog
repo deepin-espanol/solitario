@@ -1,0 +1,8 @@
+solitario (1.0.0-1) unstable; urgency=medium
+
+  * Initial release.
+  * Klondike, Spider, FreeCell.
+  * 18 languages (i18n).
+  * Deepin/Dtk6 interface.
+
+ -- ghost <ghost@localhost>  Sat, 19 Jul 2026 12:00:00 +0000

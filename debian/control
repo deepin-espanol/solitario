@@ -1,0 +1,21 @@
+Source: solitario
+Section: games
+Priority: optional
+Maintainer: ghost <ghost@localhost>
+Build-Depends: cmake (>= 3.16),
+               debhelper-compat (= 13),
+               qt6-base-dev,
+               qt6-tools-dev,
+               qt6-tools-dev-tools,
+               libdtkcore-dev,
+               libdtkgui-dev,
+               libdtkwidget-dev
+Standards-Version: 4.6.0
+Homepage: https://github.com/user/solitario
+
+Package: solitario
+Architecture: any
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: Solitario - Juego de cartas
+ Klondike, Spider y FreeCell con interfaz Qt6/Dtk6.
+ Incluye 18 idiomas y tema Deepin.
