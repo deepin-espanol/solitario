@@ -15,11 +15,11 @@ public:
     bool Rehacer();
     bool HaGanado() const;
     QVector<Monton> &Columnas() { return columnas; }
-    QVector<Monton> &Foundations() { return foundations; }
     Monton &StockMonton() { return stock; }
+    QVector<Monton> &Foundations() { return foundations; }
     const QVector<Monton> &Columnas() const { return columnas; }
-    const QVector<Monton> &Foundations() const { return foundations; }
     const Monton &StockMonton() const { return stock; }
+    const QVector<Monton> &Foundations() const { return foundations; }
     const QVector<Accion> &Historial() const { return historial; }
     const QVector<Accion> &RedoHistorial() const { return redoHistorial; }
     void SetHistorial(const QVector<Accion> &h) { historial = h; }
@@ -29,9 +29,9 @@ private:
     Monton stock;
     QVector<Monton> columnas;
     QVector<Monton> foundations;
+    int palosUsados = 4;
     QVector<Accion> historial;
     QVector<Accion> redoHistorial;
-    int palosUsados = 1;
 };
 
 #endif

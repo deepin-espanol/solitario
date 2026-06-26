@@ -35,6 +35,24 @@ void JuegoKlondike::Iniciar(Dificultad dif) {
     while (idx < 52) {
         stock.Agregar(mazo[idx++]);
     }
+
+    if (dif == Dificultad::Facil) {
+        for (int i = 0; i < 7; i++) {
+            if (columnas[i].Vacia()) continue;
+            const Carta &top = columnas[i].Top();
+            if (top.bocaArriba && (top.valor == 1 || top.valor == 2)) continue;
+            for (int j = 0; j < i; j++) {
+                if (columnas[j].Vacia()) continue;
+                const Carta &other = columnas[j].Top();
+                if (other.bocaArriba && (other.valor == 1 || other.valor == 2)) {
+                    auto tmp = top;
+                    columnas[i].cartas.last() = other;
+                    columnas[j].cartas.last() = tmp;
+                    break;
+                }
+            }
+        }
+    }
 }
 
 void JuegoKlondike::GuardarAccion(Accion::Tipo tipo, int desdeCol, int desdeIdx, int aCol, int cartasMovidas, bool volteoAuto) {

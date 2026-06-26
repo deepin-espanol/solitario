@@ -47,12 +47,14 @@ signals:
     void MovimientosChanged(int n);
     void TiempoChanged(int s);
     void PuntuacionChanged(int s);
+    void PartidaGuardada();
 
 protected:
     void paintEvent(QPaintEvent *event) override;
     void mousePressEvent(QMouseEvent *event) override;
     void mouseMoveEvent(QMouseEvent *event) override;
     void mouseReleaseEvent(QMouseEvent *event) override;
+    void mouseDoubleClickEvent(QMouseEvent *event) override;
     void resizeEvent(QResizeEvent *event) override;
     void keyPressEvent(QKeyEvent *event) override;
 
@@ -60,14 +62,13 @@ public slots:
     void Deshacer();
     void Rehacer();
     void CancelarDrag();
+
 private slots:
     void AnimarDrag();
     void TickTemporizador();
     void AnimarBarajado();
 
 private:
-    void CalcularPuntuacion();
-    void ReproducirSonido(const QString &tipo);
     void DibujarCarta(QPainter &p, const Carta &c, int x, int y, int w, int h, float lift = 0.0f);
     void DibujarCartaBocaAbajo(QPainter &p, int x, int y, int w, int h, float lift = 0.0f);
     void DibujarSombra(QPainter &p, int x, int y, int w, int h, int blur, QColor c);
@@ -81,8 +82,12 @@ private:
     int HitTest(int mx, int my, int &col, int &idx);
     void IniciarDrag(int mx, int my);
     bool HaGanado() const;
+    bool TodasCartasBocaArriba();
     int ColumnaObjetivo(int mx, int my) const;
     bool ValidarDropEnColumna(int tgtCol);
+    void AutoCompletar();
+    void CalcularPuntuacion();
+    void ReproducirSonido(const QString &tipo);
 
     QRect ColumnaRect(int col) const;
     int AnchoCarta() const;
@@ -125,6 +130,7 @@ private:
     QVector<ShuffleCard> shuffleCards;
     QTimer shuffleTimer;
 
+    // Background variant (0=classic, 1=dark, 2=light)
     int fondoVerde = 0;
 
     // Sound effects

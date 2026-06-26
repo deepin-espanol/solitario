@@ -1,6 +1,7 @@
 #include "MainWindow.h"
 #include "TableroWidget.h"
 #include <DTitlebar>
+#include <DWindowManagerHelper>
 #include <QMessageBox>
 #include <QAction>
 #include <QTimer>
@@ -45,19 +46,22 @@ MainWindow::MainWindow(QWidget *parent) : DMainWindow(parent) {
     int savedDif = s.value("dificultad", 1).toInt();
     tablero->SetDificultad(static_cast<Dificultad>(savedDif));
 
-    connect(tablero, &TableroWidget::MovimientosChanged, this, [this](int) {
-        ActualizarTitulo();
-    });
+    CargarPartida();
 
-    connect(tablero, &TableroWidget::TiempoChanged, this, [this](int) {
-        ActualizarTitulo();
-    });
-
-    connect(tablero, &TableroWidget::PuntuacionChanged, this, [this](int) {
-        ActualizarTitulo();
-    });
+    DWindowManagerHelper::instance()->setMotifFunctions(window()->windowHandle(),
+        DWindowManagerHelper::FUNC_MINIMIZE |
+        DWindowManagerHelper::FUNC_MAXIMIZE |
+        DWindowManagerHelper::FUNC_CLOSE |
+        DWindowManagerHelper::FUNC_RESIZE |
+        DWindowManagerHelper::FUNC_MOVE);
 
     connect(tablero, &TableroWidget::Gano, this, [this]() {
+        QSettings s;
+        QString key = "stats_" + QString::number(static_cast<int>(juegoActual));
+        QVariantMap m = s.value(key).toMap();
+        m["won"] = m["won"].toInt() + 1;
+        s.setValue(key, m);
+
         QTimer::singleShot(100, this, [this]() {
             QMessageBox::information(this,
                 tr("Felicidades"),
@@ -65,7 +69,13 @@ MainWindow::MainWindow(QWidget *parent) : DMainWindow(parent) {
         });
     });
 
-    CargarPartida();
+    connect(tablero, &TableroWidget::MovimientosChanged, this, [this](int n) {
+        ActualizarTitulo();
+    });
+
+    connect(tablero, &TableroWidget::TiempoChanged, this, [this](int) {
+        ActualizarTitulo();
+    });
 }
 
 void MainWindow::closeEvent(QCloseEvent *event) {
@@ -250,6 +260,17 @@ void MainWindow::CrearMenu() {
         dlg.setDescription(tr("Juego de cartas para DDE"));
         dlg.setProductIcon(QIcon(":/logo.svg"));
         dlg.exec();
+    });
+
+    QTimer::singleShot(0, this, [this]() {
+        QMenu *m = titlebar()->menu();
+        if (!m) return;
+        for (QAction *a : m->actions()) {
+            if (a->text() == DApplication::translate("TitleBarMenu", "About")) {
+                a->setVisible(false);
+                break;
+            }
+        }
     });
 }
 
