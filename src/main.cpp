@@ -14,7 +14,7 @@ int main(int argc, char *argv[]) {
     app.setOrganizationName(QStringLiteral("ghost"));
     app.setApplicationName(QStringLiteral("solitario"));
     app.setApplicationDisplayName(QStringLiteral("Solitario"));
-    app.setApplicationVersion(QStringLiteral("1.0.1"));
+    app.setApplicationVersion(QStringLiteral("1.0.2"));
     app.setWindowIcon(QIcon::fromTheme(QStringLiteral("solitario"),
                         QIcon::fromTheme(QStringLiteral("applications-games"))));
 

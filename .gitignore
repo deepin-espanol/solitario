@@ -10,3 +10,9 @@ debian/*.substvars
 debian/*.debhelper.log
 debian/solitario/
 dist/
+
+# linyaps (ll-builder)
+debs/
+linglong/
+*.uab
+*.layer

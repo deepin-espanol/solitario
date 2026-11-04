@@ -1,3 +1,11 @@
+solitario (1.0.2-1) unstable; urgency=medium
+
+  * Paquete linyaps (.uab) para amd64 y arm64 generado automaticamente
+    en cada release a partir del .deb (linglong.yaml nuevo).
+  * Release automatica a partir de la version de debian/changelog.
+
+ -- Deepin en Español <developers@deepinenespanol.org>  Wed, 04 Nov 2026 15:45:00 +0000
+
 solitario (1.0.1-1) unstable; urgency=medium
 
   * Empaquetado reescrito con debhelper (dh + cmake); elimina el postinst
