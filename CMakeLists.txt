@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
-project(Solitario VERSION 1.0.2 LANGUAGES CXX)
+project(Solitario VERSION 1.0.3 LANGUAGES CXX)
 
 include(GNUInstallDirs)
 
@@ -28,6 +28,7 @@ add_executable(solitario
     src/main.cpp
     src/Carta.h
     src/Monton.h
+    src/Historial.h
     src/JuegoKlondike.h src/JuegoKlondike.cpp
     src/JuegoSpider.h src/JuegoSpider.cpp
     src/JuegoFreeCell.h src/JuegoFreeCell.cpp
@@ -37,7 +38,10 @@ add_executable(solitario
 )
 
 # Compila los .ts y los embebe como recursos en :/i18n (ver main.cpp)
+# IMMEDIATE_CALL: la llamada diferida pierde las comillas y falla con rutas
+# que contienen espacios (las traducciones no se incrustaban)
 qt_add_translations(solitario
+    IMMEDIATE_CALL
     TS_FILES ${TS_FILES}
     RESOURCE_PREFIX "/i18n"
 )
@@ -55,3 +59,20 @@ install(FILES data/solitario.desktop
 install(FILES src/logo.svg
         DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
         RENAME solitario.svg)
+
+# Tests de la logica de juego (deshacer/rehacer, reglas). Se ejecutan con
+# ctest y tambien al construir el paquete (dh_auto_test), es decir, en el CI.
+option(BUILD_TESTING "Compilar los tests" ON)
+if(BUILD_TESTING)
+    enable_testing()
+    find_package(Qt6 REQUIRED COMPONENTS Test)
+    add_executable(test_juegos
+        tests/test_juegos.cpp
+        src/JuegoKlondike.cpp
+        src/JuegoSpider.cpp
+        src/JuegoFreeCell.cpp
+    )
+    target_include_directories(test_juegos PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(test_juegos PRIVATE Qt6::Core Qt6::Test)
+    add_test(NAME test_juegos COMMAND test_juegos)
+endif()

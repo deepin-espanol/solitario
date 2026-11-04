@@ -1,3 +1,30 @@
+solitario (1.0.3-1) unstable; urgency=medium
+
+  * Spider no se podia ganar: las escaleras completas K..A nunca se
+    retiraban (se buscaban en orden A..K, imposible en Spider).
+  * FreeCell: las celdas libres podian contener basura y parecer
+    ocupadas (Carta sin inicializar).
+  * FreeCell: el autocompletado se disparaba tras cada movimiento (todas
+    las cartas estan boca arriba desde el inicio): paraba el reloj,
+    sonaba la musica de victoria y subia cartas sin preguntar.
+  * Deshacer/rehacer reescrito con fotos del tablero: antes FreeCell no
+    deshacia movimientos a celdas ni a la fundacion, Klondike dejaba a
+    la vista cartas ocultas y Spider corrompia la partida al deshacer
+    una escalera completada.
+  * La subida automatica a la fundacion solo mueve cartas seguras (las
+    que ya no hacen falta en el tablero); el autocompletado total solo
+    cuando la partida ya esta resuelta.
+  * FreeCell: el limite de cartas movibles no descontaba la columna
+    vacia de destino.
+  * Klondike: la dificultad Dificil roba de tres en tres, con el
+    descarte en abanico.
+  * Tests automaticos de la logica (deshacer/rehacer, reglas y una
+    prueba aleatoria) ejecutados en cada compilacion del paquete.
+  * Las traducciones no se incrustaban al compilar en rutas con
+    espacios.
+
+ -- Deepin en Español <developers@deepinenespanol.org>  Wed, 04 Nov 2026 18:00:00 +0000
+
 solitario (1.0.2-1) unstable; urgency=medium
 
   * Paquete linyaps (.uab) para amd64 y arm64 generado automaticamente

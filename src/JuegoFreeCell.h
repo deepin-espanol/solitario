@@ -3,6 +3,7 @@
 
 #include "Carta.h"
 #include "Monton.h"
+#include "Historial.h"
 #include <QVector>
 
 class JuegoFreeCell {
@@ -14,7 +15,11 @@ public:
     bool MoverAColumnaDesdeCeldaLibre(int celda, int aCol);
     bool MoverAFoundationDesdeCeldaLibre(int celda);
     bool MoverACeldaLibreDesdeCeldaLibre(int desdeCelda, int aCelda);
-    bool autoFoundation();
+    // soloSeguras: solo sube cartas que ya no hacen falta en el tablero
+    bool autoFoundation(bool soloSeguras = true);
+    // Todas las columnas en orden descendente: se puede terminar automaticamente
+    bool ResolubleAutomaticamente() const;
+    int MaxCartasMovibles(int aCol, int desdeCol) const;
     bool Deshacer();
     bool Rehacer();
     bool HaGanado() const;
@@ -24,17 +29,17 @@ public:
     const QVector<Monton> &Columnas() const { return columnas; }
     const QVector<Carta> &CeldasLibres() const { return celdasLibres; }
     const QVector<Monton> &Foundations() const { return foundations; }
-    const QVector<Accion> &Historial() const { return historial; }
-    const QVector<Accion> &RedoHistorial() const { return redoHistorial; }
-    void SetHistorial(const QVector<Accion> &h) { historial = h; }
-    void SetRedoHistorial(const QVector<Accion> &h) { redoHistorial = h; }
+    Historial &HistorialRef() { return historial; }
+    const Historial &HistorialRef() const { return historial; }
+
+    EstadoMesa Capturar() const;
+    void Restaurar(const EstadoMesa &e);
 
 private:
     QVector<Carta> celdasLibres; // 4 free cells
     QVector<Monton> columnas;   // 8 columns
     QVector<Monton> foundations; // 4 foundations
-    QVector<Accion> historial;
-    QVector<Accion> redoHistorial;
+    Historial historial;
 };
 
 #endif

@@ -571,9 +571,16 @@ void TableroWidget::DibujarKlondike(QPainter &p) {
         p.drawRoundedRect(stockR, 4, 4);
     }
 
+    // Robo de 3: se ven hasta las 3 ultimas cartas en abanico; solo la de
+    // encima (la mas a la derecha) se puede jugar
     int wasteX = stockX + w + sx;
-    if (!klondike.Waste().isEmpty()) {
-        DibujarCarta(p, klondike.WasteMonton().Top(), wasteX, topY, w, h);
+    const auto &waste = klondike.Waste();
+    const int visibles = qMin(int(waste.size()), klondike.CartasPorRobo() == 3 ? 3 : 1);
+    for (int k = 0; k < visibles; ++k) {
+        const int i = waste.size() - visibles + k;
+        const bool esTop = (i == waste.size() - 1);
+        if (esTop && dragging && dragCol == -1) continue;
+        DibujarCarta(p, waste[i], wasteX + k * WasteFan(), topY, w, h);
     }
 
     int colY = topY + h + sy * 2;
@@ -730,7 +737,7 @@ int TableroWidget::HitTest(int mx, int my, int &col, int &idx) {
         if (QRect(sx, topY, w, h).contains(mx, my)) {
             col = -1; idx = -1; return 1;
         }
-        int wasteX = sx + w + sx;
+        int wasteX = sx + w + sx + WasteTopOffset();
         if (!klondike.Waste().isEmpty() && QRect(wasteX, topY, w, h).contains(mx, my)) {
             col = -1;
             idx = klondike.WasteMonton().Tamanio() - 1;
@@ -799,6 +806,7 @@ void TableroWidget::mousePressEvent(QMouseEvent *event) {
     }
     if (hit == 3) {
         if (spider.sacarDeStock()) {
+            DespuesDeJugada();
             ReproducirSonido("flip");
             CalcularPuntuacion();
             update();
@@ -816,7 +824,7 @@ void TableroWidget::mousePressEvent(QMouseEvent *event) {
         dragging = true;
         dragLift = 0.0f;
         int w = AnchoCarta(), sx = EspaciadoX();
-        int wasteX = sx + w + sx;
+        int wasteX = sx + w + sx + WasteTopOffset();
         dragOrigen = QPoint(wasteX + w/2, EspaciadoY());
         dragMouseActual = event->pos();
         dragMouseFinal = event->pos();
@@ -1008,12 +1016,7 @@ void TableroWidget::mouseReleaseEvent(QMouseEvent *event) {
         emit MovimientosChanged(movimientos);
         CalcularPuntuacion();
 
-        if (tipoJuego == Juego::Spider) {
-            for (int i = 0; i < 10; i++) spider.CompletarSecuencia(i);
-        }
-        if (tipoJuego == Juego::Klondike) klondike.autoFoundation();
-
-        AutoCompletar();
+        DespuesDeJugada();
         update();
         if (HaGanado()) {
             timerReloj.stop();
@@ -1077,7 +1080,7 @@ void TableroWidget::mouseDoubleClickEvent(QMouseEvent *event) {
         movimientos++;
         emit MovimientosChanged(movimientos);
         CalcularPuntuacion();
-        if (tipoJuego == Juego::Klondike) klondike.autoFoundation();
+        DespuesDeJugada();
         update();
         if (HaGanado()) {
             timerReloj.stop();
@@ -1137,31 +1140,47 @@ bool TableroWidget::TodasCartasBocaArriba() {
     return false;
 }
 
-void TableroWidget::AutoCompletar() {
-    if (!TodasCartasBocaArriba()) return;
-
-    bool doAuto = false;
+// Se ejecuta tras cada jugada y forma parte de ella (un solo paso de deshacer).
+void TableroWidget::DespuesDeJugada() {
     switch (tipoJuego) {
+    case Juego::Spider:
+        for (int i = 0; i < 10; i++) spider.CompletarSecuencia(i);
+        break;
     case Juego::Klondike:
-        if (!klondike.StockMonton().Vacia() || !klondike.WasteMonton().Vacia()) return;
-        doAuto = true;
+        klondike.autoFoundation(true);  // solo cartas que ya no hacen falta
         break;
     case Juego::FreeCell:
-        doAuto = true;
+        freecell.autoFoundation(true);
+        break;
+    }
+    AutoCompletar();
+}
+
+// Termina la partida automaticamente solo cuando ya esta resuelta: antes, en
+// FreeCell (todas las cartas boca arriba desde el inicio) se disparaba tras
+// cada movimiento, paraba el reloj y sonaba la musica de victoria.
+void TableroWidget::AutoCompletar() {
+    switch (tipoJuego) {
+    case Juego::Klondike:
+        if (klondike.StockMonton().Vacia() && klondike.WasteMonton().Vacia() && TodasCartasBocaArriba())
+            klondike.autoFoundation(false);
+        break;
+    case Juego::FreeCell:
+        if (freecell.ResolubleAutomaticamente())
+            freecell.autoFoundation(false);
         break;
     case Juego::Spider:
         break;
     }
+}
 
-    if (doAuto) {
-        timerReloj.stop();
-        ReproducirSonido("win");
-        switch (tipoJuego) {
-        case Juego::Klondike: klondike.autoFoundation(); break;
-        case Juego::FreeCell: freecell.autoFoundation(); break;
-        default: break;
-        }
-    }
+int TableroWidget::WasteFan() const {
+    return AnchoCarta() / 4;
+}
+
+int TableroWidget::WasteTopOffset() const {
+    if (klondike.CartasPorRobo() != 3) return 0;
+    return (qMin(int(klondike.Waste().size()), 3) - 1) * WasteFan();
 }
 
 void TableroWidget::Deshacer() {
@@ -1259,33 +1278,6 @@ static QVector<Monton> MontonesFromJson(const QJsonArray &arr) {
     return v;
 }
 
-static QJsonArray AccionesToJson(const QVector<Accion> &acciones) {
-    QJsonArray arr;
-    for (const auto &a : acciones) {
-        QJsonObject obj;
-        obj["tipo"] = static_cast<int>(a.tipo);
-        obj["desdeCol"] = a.desdeCol;
-        obj["desdeIdx"] = a.desdeIdx;
-        obj["aCol"] = a.aCol;
-        obj["cartasMovidas"] = a.cartasMovidas;
-        obj["volteoAuto"] = a.volteoAuto;
-        arr.append(obj);
-    }
-    return arr;
-}
-
-static QVector<Accion> AccionesFromJson(const QJsonArray &arr) {
-    QVector<Accion> v;
-    for (const auto &val : arr) {
-        QJsonObject o = val.toObject();
-        v.append({static_cast<Accion::Tipo>(o["tipo"].toInt()),
-                  o["desdeCol"].toInt(), o["desdeIdx"].toInt(),
-                  o["aCol"].toInt(), o["cartasMovidas"].toInt(),
-                  o["volteoAuto"].toBool()});
-    }
-    return v;
-}
-
 QString TableroWidget::SerializarEstado() const {
     QJsonObject root;
     root["juego"] = static_cast<int>(tipoJuego);
@@ -1301,22 +1293,19 @@ QString TableroWidget::SerializarEstado() const {
         root["waste"] = CartasToJson(klondike.Waste());
         root["columnas"] = MontonesToJson(klondike.Columnas());
         root["foundations"] = MontonesToJson(klondike.Foundations());
-        root["historial"] = AccionesToJson(klondike.Historial());
-        root["redo"] = AccionesToJson(klondike.RedoHistorial());
+        root["historial"] = klondike.HistorialRef().toJson();
         break;
     case Juego::Spider:
         root["stock"] = CartasToJson(spider.StockMonton().cartas);
         root["columnas"] = MontonesToJson(spider.Columnas());
         root["foundations"] = MontonesToJson(spider.Foundations());
-        root["historial"] = AccionesToJson(spider.Historial());
-        root["redo"] = AccionesToJson(spider.RedoHistorial());
+        root["historial"] = spider.HistorialRef().toJson();
         break;
     case Juego::FreeCell:
         root["celdas"] = CartasToJson(freecell.CeldasLibres());
         root["columnas"] = MontonesToJson(freecell.Columnas());
         root["foundations"] = MontonesToJson(freecell.Foundations());
-        root["historial"] = AccionesToJson(freecell.Historial());
-        root["redo"] = AccionesToJson(freecell.RedoHistorial());
+        root["historial"] = freecell.HistorialRef().toJson();
         break;
     }
 
@@ -1349,14 +1338,17 @@ void TableroWidget::IniciarJuegoFromJson(const QString &json) {
     switch (tipoJuego) {
     case Juego::Klondike: {
         klondike = JuegoKlondike();
+        klondike.SetCartasPorRobo(dificultad == Dificultad::Dificil ? 3 : 1);
         klondike.StockMonton().cartas = CartasFromJson(root["stock"].toArray());
         klondike.WasteMonton().cartas = CartasFromJson(root["waste"].toArray());
         QVector<Monton> cols = MontonesFromJson(root["columnas"].toArray());
         klondike.Columnas() = std::move(cols);
         QVector<Monton> fds = MontonesFromJson(root["foundations"].toArray());
         klondike.Foundations() = std::move(fds);
-        klondike.SetHistorial(AccionesFromJson(root["historial"].toArray()));
-        klondike.SetRedoHistorial(AccionesFromJson(root["redo"].toArray()));
+        // Partidas guardadas con el formato antiguo: se conserva la mesa y se
+        // descarta su historial (no era fiable)
+        if (root["historial"].isObject())
+            klondike.HistorialRef().fromJson(root["historial"].toObject());
         break;
     }
     case Juego::Spider: {
@@ -1366,8 +1358,10 @@ void TableroWidget::IniciarJuegoFromJson(const QString &json) {
         spider.Columnas() = std::move(cols);
         QVector<Monton> fds = MontonesFromJson(root["foundations"].toArray());
         spider.Foundations() = std::move(fds);
-        spider.SetHistorial(AccionesFromJson(root["historial"].toArray()));
-        spider.SetRedoHistorial(AccionesFromJson(root["redo"].toArray()));
+        // Partidas guardadas con el formato antiguo: se conserva la mesa y se
+        // descarta su historial (no era fiable)
+        if (root["historial"].isObject())
+            spider.HistorialRef().fromJson(root["historial"].toObject());
         break;
     }
     case Juego::FreeCell: {
@@ -1378,8 +1372,10 @@ void TableroWidget::IniciarJuegoFromJson(const QString &json) {
         freecell.Columnas() = std::move(cols);
         QVector<Monton> fds = MontonesFromJson(root["foundations"].toArray());
         freecell.Foundations() = std::move(fds);
-        freecell.SetHistorial(AccionesFromJson(root["historial"].toArray()));
-        freecell.SetRedoHistorial(AccionesFromJson(root["redo"].toArray()));
+        // Partidas guardadas con el formato antiguo: se conserva la mesa y se
+        // descarta su historial (no era fiable)
+        if (root["historial"].isObject())
+            freecell.HistorialRef().fromJson(root["historial"].toObject());
         break;
     }
     }

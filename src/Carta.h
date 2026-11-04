@@ -7,19 +7,11 @@ enum class Palo { Trebol, Diamante, Corazon, Espada };
 enum class Juego { Klondike, Spider, FreeCell };
 enum class Dificultad { Facil, Medio, Dificil };
 
-struct Accion {
-    enum Tipo { MoverColumnas, Foundation, StockDraw, AutoFlip, CompletarSecuencia, CeldaLibre };
-    Tipo tipo;
-    int desdeCol;
-    int desdeIdx;
-    int aCol;
-    int cartasMovidas;
-    bool volteoAuto;
-};
-
 struct Carta {
-    Palo palo;
-    int valor; // 1-13
+    // Inicializados: sin esto, las celdas libres de FreeCell creadas con
+    // resize() contenian basura y podian parecer ocupadas.
+    Palo palo = Palo::Trebol;
+    int valor = 0; // 1-13 (0 = hueco vacio)
     bool bocaArriba = false;
 
     bool EsVacia() const { return valor == 0; }

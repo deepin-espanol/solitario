@@ -6,10 +6,9 @@ void JuegoSpider::Iniciar(Dificultad dif) {
     stock.Limpiar();
     columnas.clear();
     foundations.clear();
-    historial.clear();
-    redoHistorial.clear();
+    historial.limpiar();
 
-    int palos;
+    int palos = 4;
     switch (dif) {
     case Dificultad::Facil:  palos = 1; break;
     case Dificultad::Medio:  palos = 2; break;
@@ -74,11 +73,9 @@ bool JuegoSpider::MoverAColumna(int desdeCol, int desdeIdx, int aCol) {
         if (dest.Top().valor != cartas.first().valor + 1) return false;
     }
 
+    historial.registrar(Capturar());
     origen.cartas.resize(desdeIdx);
     for (auto &c : cartas) dest.Agregar(c);
-
-    historial.append({Accion::MoverColumnas, desdeCol, desdeIdx, aCol, int(cartas.size()), false});
-    redoHistorial.clear();
 
     if (!origen.Vacia() && !origen.Top().bocaArriba) {
         origen.Top().bocaArriba = true;
@@ -87,37 +84,31 @@ bool JuegoSpider::MoverAColumna(int desdeCol, int desdeIdx, int aCol) {
     return true;
 }
 
+// Retira una escalera completa K..A del mismo palo que este en lo alto de la
+// columna. Antes se buscaba A..K de abajo arriba, orden imposible en Spider
+// (se construye descendiendo), asi que nunca se retiraba y no se podia ganar.
 bool JuegoSpider::CompletarSecuencia(int col) {
     if (col < 0 || col >= columnas.size()) return false;
     auto &c = columnas[col];
     if (c.cartas.size() < 13) return false;
 
-    int baseIdx = c.cartas.size() - 13;
-    int base = c.cartas[baseIdx].valor;
-    Palo paloBase = c.cartas[baseIdx].palo;
-
-    if (base != 1) return false;
-
+    const int baseIdx = c.cartas.size() - 13;
+    const Palo paloBase = c.cartas[baseIdx].palo;
     for (int i = baseIdx; i < c.cartas.size(); i++) {
         if (!c.cartas[i].bocaArriba) return false;
-        if (c.cartas[i].valor != i - baseIdx + 1) return false;
         if (c.cartas[i].palo != paloBase) return false;
+        if (c.cartas[i].valor != 13 - (i - baseIdx)) return false;  // K, Q, ..., A
     }
 
     for (int i = 0; i < 13; i++) c.Quitar();
-
     for (auto &f : foundations) {
         if (f.Vacia()) {
-            Carta fc = {paloBase, 13, true};
-            f.Agregar(fc);
+            f.Agregar(Carta{paloBase, 13, true});
             break;
         }
     }
-
-    if (!c.Vacia() && !c.Top().bocaArriba) {
+    if (!c.Vacia() && !c.Top().bocaArriba)
         c.Top().bocaArriba = true;
-    }
-
     return true;
 }
 
@@ -130,72 +121,44 @@ bool JuegoSpider::sacarDeStock() {
     }
     if (anyEmpty) return false;
 
+    historial.registrar(Capturar());
     for (int i = 0; i < 10; i++) {
         Carta c = stock.Quitar();
         c.bocaArriba = true;
         columnas[i].Agregar(c);
     }
-    historial.append({Accion::StockDraw, -3, 0, -1, 10, false});
-    redoHistorial.clear();
     return true;
 }
 
-bool JuegoSpider::Deshacer() {
-    if (historial.isEmpty()) return false;
-    Accion a = historial.takeLast();
-    redoHistorial.append(a);
+// CompletarSecuencia no registra historial: se llama justo despues de un
+// movimiento y forma parte de el, asi que deshacer los revierte juntos.
+EstadoMesa JuegoSpider::Capturar() const {
+    EstadoMesa e;
+    e.stock = CopiaMonton(stock);
+    e.columnas = CopiaMontones(columnas);
+    e.foundations = CopiaMontones(foundations);
+    return e;
+}
 
-    switch (a.tipo) {
-    case Accion::MoverColumnas: {
-        auto &dest = columnas[a.aCol];
-        QVector<Carta> cartas;
-        for (int i = 0; i < a.cartasMovidas; i++) cartas.prepend(dest.Quitar());
-        for (auto &c : cartas) columnas[a.desdeCol].Agregar(c);
-        // Revert auto-flip if needed
-        if (!columnas[a.desdeCol].Vacia()) {
-            int restoredIdx = columnas[a.desdeCol].Tamanio() - cartas.size();
-            if (restoredIdx - 1 >= 0 && columnas[a.desdeCol].cartas[restoredIdx - 1].bocaArriba) {
-                columnas[a.desdeCol].cartas[restoredIdx - 1].bocaArriba = false;
-            }
-        }
-        break;
-    }
-    case Accion::StockDraw:
-        for (int i = 9; i >= 0; i--) {
-            if (!columnas[i].Vacia()) {
-                Carta c = columnas[i].Quitar();
-                c.bocaArriba = false;
-                stock.Agregar(c);
-            }
-        }
-        break;
-    }
+void JuegoSpider::Restaurar(const EstadoMesa &e) {
+    stock = e.stock;
+    columnas = e.columnas;
+    foundations = e.foundations;
+    if (columnas.size() != 10) columnas.resize(10);
+    if (foundations.size() != 8) foundations.resize(8);
+}
+
+bool JuegoSpider::Deshacer() {
+    EstadoMesa e;
+    if (!historial.deshacer(Capturar(), e)) return false;
+    Restaurar(e);
     return true;
 }
 
 bool JuegoSpider::Rehacer() {
-    if (redoHistorial.isEmpty()) return false;
-    Accion a = redoHistorial.takeLast();
-    historial.append(a);
-
-    switch (a.tipo) {
-    case Accion::MoverColumnas: {
-        auto &origen = columnas[a.desdeCol];
-        QVector<Carta> cartas;
-        int start = origen.Tamanio() - a.cartasMovidas;
-        for (int i = start; i < origen.Tamanio(); i++) cartas.append(origen.cartas[i]);
-        origen.cartas.resize(start);
-        for (auto &c : cartas) columnas[a.aCol].Agregar(c);
-        break;
-    }
-    case Accion::StockDraw:
-        for (int i = 0; i < 10; i++) {
-            Carta c = stock.Quitar();
-            c.bocaArriba = true;
-            columnas[i].Agregar(c);
-        }
-        break;
-    }
+    EstadoMesa e;
+    if (!historial.rehacer(Capturar(), e)) return false;
+    Restaurar(e);
     return true;
 }
 

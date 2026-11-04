@@ -86,6 +86,9 @@ private:
     int ColumnaObjetivo(int mx, int my) const;
     bool ValidarDropEnColumna(int tgtCol);
     void AutoCompletar();
+    void DespuesDeJugada();
+    int WasteFan() const;
+    int WasteTopOffset() const;
     void CalcularPuntuacion();
     void ReproducirSonido(const QString &tipo);
 

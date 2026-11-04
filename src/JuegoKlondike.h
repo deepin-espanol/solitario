@@ -3,6 +3,7 @@
 
 #include "Carta.h"
 #include "Monton.h"
+#include "Historial.h"
 #include <QVector>
 
 class JuegoKlondike {
@@ -10,13 +11,15 @@ public:
     void Iniciar(Dificultad dif = Dificultad::Medio);
     bool MoverAColumna(int desdeCol, int desdeIdx, int aCol);
     bool MoverAFoundation(int desdeCol, int desdeIdx);
-    bool voltear(int col);
     bool sacarDeStock();
-    bool autoFoundation();
+    // soloSeguras: solo sube cartas que ya no hacen falta en el tablero
+    bool autoFoundation(bool soloSeguras = true);
     bool Deshacer();
     bool Rehacer();
-    bool HayDeshacer() const { return !historial.isEmpty(); }
+    bool HayDeshacer() const { return historial.hayDeshacer(); }
     bool HaGanado() const;
+    int CartasPorRobo() const { return robo; }
+
     QVector<Carta> &Stock() { return stock.cartas; }
     QVector<Carta> &Waste() { return waste.cartas; }
     QVector<Monton> &Columnas() { return columnas; }
@@ -29,20 +32,22 @@ public:
     const QVector<Monton> &Foundations() const { return foundations; }
     const Monton &StockMonton() const { return stock; }
     const Monton &WasteMonton() const { return waste; }
-    const QVector<Accion> &Historial() const { return historial; }
-    const QVector<Accion> &RedoHistorial() const { return redoHistorial; }
-    void SetHistorial(const QVector<Accion> &h) { historial = h; }
-    void SetRedoHistorial(const QVector<Accion> &h) { redoHistorial = h; }
+    Historial &HistorialRef() { return historial; }
+    const Historial &HistorialRef() const { return historial; }
+    void SetCartasPorRobo(int n) { robo = (n == 3) ? 3 : 1; }
+
+    EstadoMesa Capturar() const;
+    void Restaurar(const EstadoMesa &e);
 
 private:
-    void GuardarAccion(Accion::Tipo tipo, int desdeCol, int desdeIdx, int aCol, int cartasMovidas, bool volteoAuto = false);
+    void VoltearSuperior(int col);
 
     Monton stock;
     Monton waste;
     QVector<Monton> columnas;
     QVector<Monton> foundations;
-    QVector<Accion> historial;
-    QVector<Accion> redoHistorial;
+    Historial historial;
+    int robo = 1;  // cartas que se pasan del mazo al descarte en cada robo
 };
 
 #endif

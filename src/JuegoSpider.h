@@ -3,6 +3,7 @@
 
 #include "Carta.h"
 #include "Monton.h"
+#include "Historial.h"
 #include <QVector>
 
 class JuegoSpider {
@@ -20,18 +21,18 @@ public:
     const QVector<Monton> &Columnas() const { return columnas; }
     const Monton &StockMonton() const { return stock; }
     const QVector<Monton> &Foundations() const { return foundations; }
-    const QVector<Accion> &Historial() const { return historial; }
-    const QVector<Accion> &RedoHistorial() const { return redoHistorial; }
-    void SetHistorial(const QVector<Accion> &h) { historial = h; }
-    void SetRedoHistorial(const QVector<Accion> &h) { redoHistorial = h; }
+    Historial &HistorialRef() { return historial; }
+    const Historial &HistorialRef() const { return historial; }
+
+    EstadoMesa Capturar() const;
+    void Restaurar(const EstadoMesa &e);
 
 private:
     Monton stock;
     QVector<Monton> columnas;
     QVector<Monton> foundations;
     int palosUsados = 4;
-    QVector<Accion> historial;
-    QVector<Accion> redoHistorial;
+    Historial historial;
 };
 
 #endif
