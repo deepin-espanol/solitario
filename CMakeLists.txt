@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
-project(Solitario VERSION 1.0 LANGUAGES CXX)
+project(Solitario VERSION 1.0.1 LANGUAGES CXX)
+
+include(GNUInstallDirs)
 
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
@@ -18,33 +20,9 @@ find_package(Dtk6Widget REQUIRED)
 
 set(LANGUAGES en zh hi es fr ar bn pt ru ja ko de id tr it vi th pl)
 set(TS_FILES)
-set(QM_FILES)
 foreach(LANG ${LANGUAGES})
-    list(APPEND TS_FILES "${CMAKE_SOURCE_DIR}/translations/solitario_${LANG}.ts")
-    list(APPEND QM_FILES "${CMAKE_BINARY_DIR}/translations/solitario_${LANG}.qm")
+    list(APPEND TS_FILES "${CMAKE_CURRENT_SOURCE_DIR}/translations/solitario_${LANG}.ts")
 endforeach()
-
-file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/translations")
-
-set(_qm_depends)
-foreach(LANG ${LANGUAGES})
-    add_custom_command(
-        OUTPUT "${CMAKE_BINARY_DIR}/translations/solitario_${LANG}.qm"
-        COMMAND Qt6::lrelease
-            "${CMAKE_SOURCE_DIR}/translations/solitario_${LANG}.ts"
-            -qm "${CMAKE_BINARY_DIR}/translations/solitario_${LANG}.qm"
-        DEPENDS "${CMAKE_SOURCE_DIR}/translations/solitario_${LANG}.ts"
-        COMMENT "lrelease solitario_${LANG}.qm"
-    )
-    list(APPEND _qm_depends "${CMAKE_BINARY_DIR}/translations/solitario_${LANG}.qm")
-endforeach()
-
-set(_qrc_content "<RCC>\n    <qresource prefix=\"/i18n\">\n")
-foreach(LANG ${LANGUAGES})
-    string(APPEND _qrc_content "        <file>translations/solitario_${LANG}.qm</file>\n")
-endforeach()
-string(APPEND _qrc_content "    </qresource>\n</RCC>\n")
-file(WRITE "${CMAKE_BINARY_DIR}/translations.qrc" "${_qrc_content}")
 
 add_executable(solitario
     src/main.cpp
@@ -56,8 +34,12 @@ add_executable(solitario
     src/TableroWidget.h src/TableroWidget.cpp
     src/MainWindow.h src/MainWindow.cpp
     src/resources.qrc
-    ${CMAKE_BINARY_DIR}/translations.qrc
-    ${_qm_depends}
+)
+
+# Compila los .ts y los embebe como recursos en :/i18n (ver main.cpp)
+qt_add_translations(solitario
+    TS_FILES ${TS_FILES}
+    RESOURCE_PREFIX "/i18n"
 )
 
 target_link_libraries(solitario PRIVATE
@@ -67,4 +49,9 @@ target_link_libraries(solitario PRIVATE
 
 target_include_directories(solitario PRIVATE ${CMAKE_CURRENT_BINARY_DIR})
 
-install(TARGETS solitario DESTINATION bin)
+install(TARGETS solitario RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
+install(FILES data/solitario.desktop
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/applications)
+install(FILES src/logo.svg
+        DESTINATION ${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps
+        RENAME solitario.svg)

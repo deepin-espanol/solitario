@@ -1,0 +1,19 @@
+[Desktop Entry]
+Type=Application
+Name=Solitario
+Name[en]=Solitaire
+Name[de]=Solitär
+Name[fr]=Solitaire
+Name[it]=Solitario
+Name[pt]=Paciência
+Name[zh]=纸牌
+GenericName=Card Game
+GenericName[es]=Juego de cartas
+Comment=Klondike, Spider and FreeCell card games
+Comment[es]=Juegos de cartas Klondike, Spider y FreeCell
+Exec=solitario
+Icon=solitario
+Terminal=false
+Categories=Game;CardGame;
+Keywords=solitaire;klondike;spider;freecell;cards;
+Keywords[es]=solitario;klondike;spider;freecell;cartas;

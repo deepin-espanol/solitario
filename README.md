@@ -18,11 +18,22 @@ Juego de cartas tipo solitario con 3 variantes, desarrollado con Qt6 y Deepin To
 
 - `Juego > Klondike / Spider / FreeCell` - Cambiar variante
 - `Juego > Nuevo juego` - Reiniciar variante actual
+- `Juego > Dificultad` / `Fondo de mesa` - Se recuerdan entre sesiones
+- `Juego > Estadísticas` - Partidas jugadas y ganadas por variante
+- `F11` - Pantalla completa
+
+## Paquete .deb
+
+```bash
+sudo apt build-dep ./
+dpkg-buildpackage -us -uc -b
+sudo apt install ../solitario_*.deb
+```
 
 ## Dependencias
 
 ```bash
-sudo apt install qt6-base-dev qt6-multimedia-dev libdtk6widget-dev cmake
+sudo apt install qt6-base-dev qt6-multimedia-dev qt6-tools-dev qt6-l10n-tools libdtk6widget-dev cmake g++
 ```
 
 ## Compilar

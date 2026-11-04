@@ -4,6 +4,7 @@
 #include <DWindowManagerHelper>
 #include <QMessageBox>
 #include <QAction>
+#include <QActionGroup>
 #include <QTimer>
 #include <QIcon>
 #include <DAboutDialog>
@@ -182,62 +183,44 @@ void MainWindow::CrearMenu() {
     QAction *actFacil = menuDif->addAction(tr("Fácil"));
     QAction *actMedio = menuDif->addAction(tr("Medio"));
     QAction *actDificil = menuDif->addAction(tr("Difícil"));
-    QList<QAction*> difs = {actFacil, actMedio, actDificil};
-    for (QAction *a : difs) a->setCheckable(true);
-    difs[1]->setChecked(true);
-
+    // Grupos exclusivos: Qt gestiona las marcas sin capturar variables locales
+    // por referencia (antes las lambdas apuntaban a listas ya destruidas).
     QSettings sIni;
-    int savedDif = sIni.value("dificultad", 1).toInt();
-    for (int i = 0; i < difs.size(); i++) difs[i]->setChecked(i == savedDif);
-
-    auto updateDifChecks = [&](int idx) {
-        for (int i = 0; i < difs.size(); i++) difs[i]->setChecked(i == idx);
-    };
-
-    connect(actFacil, &QAction::triggered, this, [this, updateDifChecks]() {
-        tablero->SetDificultad(Dificultad::Facil);
-        QSettings s; s.setValue("dificultad", 0);
-        updateDifChecks(0);
-    });
-    connect(actMedio, &QAction::triggered, this, [this, updateDifChecks]() {
-        tablero->SetDificultad(Dificultad::Medio);
-        QSettings s; s.setValue("dificultad", 1);
-        updateDifChecks(1);
-    });
-    connect(actDificil, &QAction::triggered, this, [this, updateDifChecks]() {
-        tablero->SetDificultad(Dificultad::Dificil);
-        QSettings s; s.setValue("dificultad", 2);
-        updateDifChecks(2);
-    });
+    auto *grupoDif = new QActionGroup(this);
+    grupoDif->setExclusive(true);
+    const QList<QAction*> difs = {actFacil, actMedio, actDificil};
+    const int savedDif = qBound(0, sIni.value("dificultad", 1).toInt(), 2);
+    for (int i = 0; i < difs.size(); i++) {
+        QAction *a = difs[i];
+        a->setCheckable(true);
+        a->setChecked(i == savedDif);
+        grupoDif->addAction(a);
+        connect(a, &QAction::triggered, this, [this, i]() {
+            tablero->SetDificultad(static_cast<Dificultad>(i));
+            QSettings s; s.setValue("dificultad", i);
+            ActualizarTitulo();
+        });
+    }
 
     menuJuego->addSeparator();
     QMenu *menuFondo = menuJuego->addMenu(tr("Fondo de mesa"));
     QAction *actFondoClasico = menuFondo->addAction(tr("Clásico (verde)"));
     QAction *actFondoOscuro = menuFondo->addAction(tr("Oscuro"));
     QAction *actFondoClaro = menuFondo->addAction(tr("Claro"));
-    QList<QAction*> fondos = {actFondoClasico, actFondoOscuro, actFondoClaro};
-    for (QAction *a : fondos) a->setCheckable(true);
-    fondos[0]->setChecked(true);
-
-    auto updateFondoChecks = [&](int idx) {
-        for (int i = 0; i < fondos.size(); i++) fondos[i]->setChecked(i == idx);
-    };
-
-    connect(actFondoClasico, &QAction::triggered, this, [this, updateFondoChecks]() {
-        tablero->SetFondoVerde(0);
-        QSettings s; s.setValue("fondo_verde", 0);
-        updateFondoChecks(0);
-    });
-    connect(actFondoOscuro, &QAction::triggered, this, [this, updateFondoChecks]() {
-        tablero->SetFondoVerde(1);
-        QSettings s; s.setValue("fondo_verde", 1);
-        updateFondoChecks(1);
-    });
-    connect(actFondoClaro, &QAction::triggered, this, [this, updateFondoChecks]() {
-        tablero->SetFondoVerde(2);
-        QSettings s; s.setValue("fondo_verde", 2);
-        updateFondoChecks(2);
-    });
+    auto *grupoFondo = new QActionGroup(this);
+    grupoFondo->setExclusive(true);
+    const QList<QAction*> fondos = {actFondoClasico, actFondoOscuro, actFondoClaro};
+    const int savedFondo = qBound(0, sIni.value("fondo_verde", 0).toInt(), 2);
+    for (int i = 0; i < fondos.size(); i++) {
+        QAction *a = fondos[i];
+        a->setCheckable(true);
+        a->setChecked(i == savedFondo);
+        grupoFondo->addAction(a);
+        connect(a, &QAction::triggered, this, [this, i]() {
+            tablero->SetFondoVerde(i);
+            QSettings s; s.setValue("fondo_verde", i);
+        });
+    }
 
     menuJuego->addSeparator();
     QAction *actStats = menuJuego->addAction(tr("Estadísticas"));
@@ -256,7 +239,7 @@ void MainWindow::CrearMenu() {
     connect(actAbout, &QAction::triggered, this, [this]() {
         DAboutDialog dlg(this);
         dlg.setProductName(QStringLiteral("Solitario"));
-        dlg.setVersion(QStringLiteral("1.0.0"));
+        dlg.setVersion(QApplication::applicationVersion());
         dlg.setDescription(tr("Juego de cartas para DDE"));
         dlg.setProductIcon(QIcon(":/logo.svg"));
         dlg.exec();

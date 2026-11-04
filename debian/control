@@ -1,23 +1,26 @@
 Source: solitario
 Section: games
 Priority: optional
-Maintainer: ghost <ghost@localhost>
-Build-Depends: cmake (>= 3.16),
-               debhelper-compat (= 13),
+Maintainer: Deepin en Español <developers@deepinenespanol.org>
+Build-Depends: debhelper-compat (= 13),
+               cmake (>= 3.16),
+               pkg-config,
                qt6-base-dev,
                qt6-multimedia-dev,
+               qt6-tools-dev,
                qt6-tools-dev-tools,
                qt6-l10n-tools,
                libdtk6core-dev,
                libdtk6gui-dev,
-               libdtk6widget-dev,
-               pkg-config
-Standards-Version: 4.6.0
-Homepage: https://github.com/user/solitario
+               libdtk6widget-dev
+Standards-Version: 4.6.2
+Homepage: https://github.com/deepin-espanol/solitario
+Rules-Requires-Root: no
 
 Package: solitario
 Architecture: any
 Depends: ${shlibs:Depends}, ${misc:Depends}
-Description: Solitario - Juego de cartas
- Klondike, Spider y FreeCell con interfaz Qt6/Dtk6.
- Incluye 18 idiomas y tema Deepin.
+Description: Solitario - juegos de cartas para Deepin
+ Klondike, Spider y FreeCell con interfaz Qt6/DTK6.
+ Incluye deshacer/rehacer, guardado automatico de la partida,
+ estadisticas, varios fondos de mesa y 18 idiomas.

@@ -1,3 +1,15 @@
+solitario (1.0.1-1) unstable; urgency=medium
+
+  * Empaquetado reescrito con debhelper (dh + cmake); elimina el postinst
+    que ejecutaba dh_auto_configure en el sistema del usuario.
+  * Anade qt6-tools-dev a Build-Depends (necesario para LinguistTools).
+  * Traducciones compiladas con qt_add_translations y embebidas en :/i18n.
+  * Instala archivo .desktop e icono para que aparezca en el lanzador.
+  * Corrige referencias colgantes en los menus de dificultad y fondo.
+  * CI: dependencias tomadas de debian/control, checkout@v7, artefacto .deb.
+
+ -- Deepin en Español <developers@deepinenespanol.org>  Wed, 04 Nov 2026 12:00:00 +0000
+
 solitario (1.0.0-1) unstable; urgency=medium
 
   * Initial release.
