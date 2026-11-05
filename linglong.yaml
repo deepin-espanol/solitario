@@ -3,7 +3,7 @@ version: "1"
 package:
   id: org.deepinenespanol.solitario
   name: Solitario
-  version: 1.0.2.0
+  version: 1.0.3.0
   kind: app
   description: |
     Klondike, Spider and FreeCell card games for Deepin built with Qt6 and DTK6.

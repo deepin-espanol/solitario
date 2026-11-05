@@ -253,6 +253,13 @@ int TableroWidget::EspaciadoX() const {
     return qMax(4, (width() - cols * AnchoCarta()) / (cols + 1));
 }
 
+// Las fundaciones se alinean con las 4 ultimas columnas (antes se anclaban
+// al borde derecho sin margen y la cuarta quedaba cortada).
+int TableroWidget::FundacionX(int i) const {
+    const int cols = (tipoJuego == Juego::FreeCell) ? 8 : 7;
+    return EspaciadoX() + (cols - 4 + i) * (AnchoCarta() + EspaciadoX());
+}
+
 int TableroWidget::EspaciadoY() const {
     return AltoCarta() / 4;
 }
@@ -410,7 +417,7 @@ void TableroWidget::DibujarCarta(QPainter &p, const Carta &c, int x, int y, int 
     p.drawText(0, mfv.height() + mfs.ascent() + 1, palo);
     p.restore();
 
-    int centerPx = qMax(10, qMin(w / 2, 24));
+    int centerPx = qMax(12, qMin(w * 6 / 10, 40));
     QFont cs("Noto Sans CJK SC");
     cs.setPixelSize(centerPx);
     if (!QFontInfo(cs).exactMatch()) {
@@ -418,9 +425,8 @@ void TableroWidget::DibujarCarta(QPainter &p, const Carta &c, int x, int y, int 
         cs.setPixelSize(centerPx);
     }
     p.setFont(cs);
-    p.setOpacity(0.10);
+    // Antes con opacidad 0.10: el palo central apenas se veia
     p.drawText(r, Qt::AlignCenter, palo);
-    p.setOpacity(1.0);
 
     p.restore();
 }
@@ -550,7 +556,7 @@ void TableroWidget::DibujarKlondike(QPainter &p) {
     if (dragging) DibujarDropTarget(p, dropColResaltado);
 
     for (int i = 0; i < 4; i++) {
-        int x = width() - (4 - i) * (w + sx) + sx;
+        int x = FundacionX(i);
         QRect r(x, topY, w, h);
         p.setPen(QPen(QColor(255, 255, 255, 60), 1, Qt::DashLine));
         p.setBrush(QColor(255, 255, 255, 15));
@@ -680,7 +686,7 @@ void TableroWidget::DibujarFreeCell(QPainter &p) {
     }
 
     for (int i = 0; i < 4; i++) {
-        int x = width() - (4 - i) * (w + sx) + sx;
+        int x = FundacionX(i);
         QRect r(x, topY, w, h);
         p.setPen(QPen(QColor(255, 255, 255, 60), 1, Qt::DashLine));
         p.setBrush(QColor(255, 255, 255, 15));
@@ -724,7 +730,7 @@ int TableroWidget::HitTest(int mx, int my, int &col, int &idx) {
 
     if (tipoJuego != Juego::Spider) {
         for (int i = 0; i < 4; i++) {
-            int fx = width() - (4 - i) * (w + sx) + sx;
+            int fx = FundacionX(i);
             if (QRect(fx, topY, w, h).contains(mx, my)) {
                 col = -2 - i;
                 idx = -1;
@@ -1312,10 +1318,58 @@ QString TableroWidget::SerializarEstado() const {
     return QJsonDocument(root).toJson(QJsonDocument::Compact);
 }
 
-void TableroWidget::IniciarJuegoFromJson(const QString &json) {
+// Comprueba que una mesa cargada tenga la forma y el numero de cartas de su
+// variante. Una partida guardada incompleta o danada hacia que el juego se
+// cerrara en cada arranque (acceso fuera de rango al dibujar).
+static bool MesaValida(Juego tipo, const QJsonObject &root)
+{
+    auto cartas = [](const QJsonArray &a) { return int(a.size()); };
+    auto montones = [&](const QJsonArray &a, int *total) {
+        for (const auto &v : a) {
+            if (!v.isArray()) return false;
+            *total += cartas(v.toArray());
+        }
+        return true;
+    };
+    int total = 0;
+    const QJsonArray cols = root["columnas"].toArray();
+    const QJsonArray fds = root["foundations"].toArray();
+    if (!montones(cols, &total) || !montones(fds, &total)) return false;
+    for (const auto &v : root["stock"].toArray()) { Q_UNUSED(v); ++total; }
+    for (const auto &v : root["waste"].toArray()) { Q_UNUSED(v); ++total; }
+    for (const auto &v : root["celdas"].toArray())
+        if (v.toObject()["valor"].toInt() != 0) ++total;
+    for (const QJsonArray &grupo : {cols, fds, root["stock"].toArray(), root["waste"].toArray(), root["celdas"].toArray()})
+        for (const auto &x : grupo)
+            for (const auto &carta : (x.isArray() ? x.toArray() : QJsonArray{x})) {
+                const int v = carta.toObject()["valor"].toInt();
+                const int p = carta.toObject()["palo"].toInt();
+                if (v < 0 || v > 13 || p < 0 || p > 3) return false;
+            }
+
+    switch (tipo) {
+    case Juego::Klondike:
+        return cols.size() == 7 && fds.size() == 4 && total == 52;
+    case Juego::FreeCell: {
+        const int celdas = root["celdas"].toArray().size();
+        return cols.size() == 8 && fds.size() == 4 && celdas >= 1 && celdas <= 8 && total == 52;
+    }
+    case Juego::Spider: {
+        // Cada escalera completada se guarda como una sola carta (el K)
+        int completas = 0;
+        for (const auto &f : fds) if (!f.toArray().isEmpty()) ++completas;
+        return cols.size() == 10 && fds.size() == 8 && total - completas + completas * 13 == 104;
+    }
+    }
+    return false;
+}
+
+bool TableroWidget::IniciarJuegoFromJson(const QString &json) {
     QJsonDocument doc = QJsonDocument::fromJson(json.toUtf8());
-    if (doc.isNull()) return;
+    if (doc.isNull() || !doc.isObject()) return false;
     QJsonObject root = doc.object();
+    const int tipo = root["juego"].toInt(-1);
+    if (tipo < 0 || tipo > 2 || !MesaValida(static_cast<Juego>(tipo), root)) return false;
 
     tipoJuego = static_cast<Juego>(root["juego"].toInt());
     movimientos = root["movimientos"].toInt();
@@ -1385,6 +1439,16 @@ void TableroWidget::IniciarJuegoFromJson(const QString &json) {
     emit TiempoChanged(tiempoSegundos);
     emit PuntuacionChanged(puntuacion);
     update();
+    return true;
+}
+
+bool TableroWidget::HayPartida() const {
+    switch (tipoJuego) {
+    case Juego::Klondike: return klondike.Columnas().size() == 7;
+    case Juego::Spider:   return spider.Columnas().size() == 10;
+    case Juego::FreeCell: return freecell.Columnas().size() == 8;
+    }
+    return false;
 }
 
 bool TableroWidget::HayPartidaGuardada() {

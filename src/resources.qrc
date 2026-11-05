@@ -2,5 +2,6 @@
     <qresource prefix="/">
         <file>deepin-logo-2.png</file>
         <file>logo.svg</file>
+        <file>Logo-Racoon.png</file>
     </qresource>
 </RCC>

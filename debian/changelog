@@ -22,6 +22,21 @@ solitario (1.0.3-1) unstable; urgency=medium
     prueba aleatoria) ejecutados en cada compilacion del paquete.
   * Las traducciones no se incrustaban al compilar en rutas con
     espacios.
+  * Una partida guardada incompleta o danada cerraba el juego en cada
+    arranque; ahora se valida y, si no es coherente, se empieza otra.
+  * Ya no se guarda una mesa vacia antes de la primera partida, y el
+    guardado es atomico (QSaveFile): un cierre inesperado no deja el
+    archivo a medias.
+  * Menu: Nuevo juego (Ctrl+N), Deshacer, Rehacer y Salir (Ctrl+Q); los
+    atajos funcionan sin abrir el menu.
+  * La cuarta casilla de la fundacion quedaba cortada; ahora se alinea
+    con las columnas. El palo central de las cartas era casi invisible.
+  * Traducciones completas en los 18 idiomas (19 de 23 textos estaban sin
+    traducir en todos).
+  * Ajustes y partida en ~/.config/deepinenespanol (antes "ghost"), con
+    migracion automatica de los datos existentes.
+  * Dialogo Acerca de con la web de Deepin en Espanol; LICENSE y
+    debian/copyright (GPL-3.0 o posterior).
 
  -- Deepin en Español <developers@deepinenespanol.org>  Wed, 04 Nov 2026 18:00:00 +0000
 

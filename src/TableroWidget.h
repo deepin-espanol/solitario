@@ -28,13 +28,14 @@ public:
     explicit TableroWidget(QWidget *parent = nullptr);
 
     void IniciarJuego(Juego tipo);
-    void IniciarJuegoFromJson(const QString &json);
+    bool IniciarJuegoFromJson(const QString &json);
     Juego TipoJuego() const { return tipoJuego; }
     Dificultad DificultadActual() const { return dificultad; }
     void SetDificultad(Dificultad d) { dificultad = d; }
 
     QString SerializarEstado() const;
     bool HayPartidaGuardada();
+    bool HayPartida() const;
 
     int TiempoSegundos() const { return tiempoSegundos; }
     int Puntuacion() const { return puntuacion; }
@@ -97,6 +98,7 @@ private:
     int AltoCarta() const;
     int EspaciadoX() const;
     int EspaciadoY() const;
+    int FundacionX(int i) const;
 
     Juego tipoJuego = Juego::Klondike;
     Dificultad dificultad = Dificultad::Medio;

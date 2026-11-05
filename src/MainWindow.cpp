@@ -11,6 +11,7 @@
 #include <DApplication>
 #include <QCloseEvent>
 #include <QFile>
+#include <QSaveFile>
 #include <QDir>
 #include <QStandardPaths>
 #include <QJsonDocument>
@@ -99,12 +100,15 @@ void MainWindow::keyPressEvent(QKeyEvent *event) {
 }
 
 void MainWindow::GuardarPartida() {
-    QString path = SavePath() + "/partida.json";
-    QString data = tablero->SerializarEstado();
-    QFile f(path);
+    // Antes de la primera partida la mesa esta vacia: guardarla dejaba un
+    // archivo que, si el juego se cerraba de golpe, impedia arrancar despues.
+    if (!tablero->HayPartida()) return;
+    // QSaveFile escribe en un temporal y lo sustituye al final: un cierre
+    // inesperado nunca deja el archivo a medias.
+    QSaveFile f(SavePath() + "/partida.json");
     if (f.open(QIODevice::WriteOnly)) {
-        f.write(data.toUtf8());
-        f.close();
+        f.write(tablero->SerializarEstado().toUtf8());
+        f.commit();
     }
 }
 
@@ -118,7 +122,12 @@ void MainWindow::CargarPartida() {
     if (f.open(QIODevice::ReadOnly)) {
         QString data = QString::fromUtf8(f.readAll());
         f.close();
-        tablero->IniciarJuegoFromJson(data);
+        // Partida danada o incompleta: se descarta y empieza una nueva
+        if (!tablero->IniciarJuegoFromJson(data)) {
+            QFile::remove(path);
+            SeleccionarJuego(Juego::Klondike);
+            return;
+        }
         juegoActual = tablero->TipoJuego();
         ActualizarTitulo();
     } else {
@@ -177,6 +186,12 @@ void MainWindow::CrearMenu() {
 
     menuJuego->addSeparator();
     QAction *actNewGame = menuJuego->addAction(tr("Nuevo juego"));
+    actNewGame->setShortcut(QKeySequence(QStringLiteral("Ctrl+N")));
+    // Ctrl+Z / Ctrl+Shift+Z los gestiona el tablero; aqui solo como opcion de menu
+    QAction *actDeshacer = menuJuego->addAction(tr("Deshacer (Ctrl+Z)"));
+    QAction *actRehacer = menuJuego->addAction(tr("Rehacer (Ctrl+Shift+Z)"));
+    connect(actDeshacer, &QAction::triggered, tablero, &TableroWidget::Deshacer);
+    connect(actRehacer, &QAction::triggered, tablero, &TableroWidget::Rehacer);
 
     menuJuego->addSeparator();
     QMenu *menuDif = menuJuego->addMenu(tr("Dificultad"));
@@ -240,10 +255,26 @@ void MainWindow::CrearMenu() {
         DAboutDialog dlg(this);
         dlg.setProductName(QStringLiteral("Solitario"));
         dlg.setVersion(QApplication::applicationVersion());
-        dlg.setDescription(tr("Juego de cartas para DDE"));
+        dlg.setDescription(
+            "<div style='text-align:center;'><img src=':/Logo-Racoon.png' width='128'/></div>"
+            + tr("Juego de cartas para DDE") + "<br/>"
+            "<span style=' font-size:8pt; font-weight:600;'>Deepin en Español </span>"
+            "<a href='https://deepinenespanol.org'>https://deepinenespanol.org</a>");
+        dlg.setWebsiteName(QStringLiteral("deepinenespanol.org"));
+        dlg.setWebsiteLink(QStringLiteral("https://deepinenespanol.org"));
         dlg.setProductIcon(QIcon(":/logo.svg"));
         dlg.exec();
     });
+
+    menuJuego->addSeparator();
+    QAction *actSalir = menuJuego->addAction(tr("Salir"));
+    actSalir->setShortcut(QKeySequence(QStringLiteral("Ctrl+Q")));
+    connect(actSalir, &QAction::triggered, this, &QWidget::close);
+
+    // Los atajos del menu de la barra de titulo solo funcionan con el menu
+    // abierto; anadirlas tambien a la ventana los activa siempre.
+    addAction(actNewGame);
+    addAction(actSalir);
 
     QTimer::singleShot(0, this, [this]() {
         QMenu *m = titlebar()->menu();
