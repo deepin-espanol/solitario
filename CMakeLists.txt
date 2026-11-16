@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 1.0.4)
+cmake_minimum_required(VERSION 3.16)
 project(Solitario VERSION 1.0.4 LANGUAGES CXX)
 
 include(GNUInstallDirs)
